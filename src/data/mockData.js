@@ -87,6 +87,95 @@ export const recentAlerts = [
   { id: 3, title: 'High complaint activity', message: 'Lab 204 has received 5 complaints today.', severity: 'Warning', time: '2 hours ago' },
 ];
 
+export const adminIncidents = [
+  {
+    id: 'INC-245',
+    issue: 'Projector not working',
+    issueType: 'Projector',
+    description: 'Projector in Lab 204 is not displaying the lecture content.',
+    location: 'Lab 204',
+    equipment: 'Projector P001',
+    reportedBy: 'Student',
+    severity: 'High',
+    status: 'Open',
+    date: 'Sep 28, 2026, 09:15 AM',
+    healthScore: 42,
+    riskScore: 78,
+    equipmentStatus: 'High Risk',
+    timeline: [
+      { status: 'Report submitted', date: 'Sep 28, 09:15 AM' },
+      { status: 'Incident reviewed by maintenance team', date: 'Sep 28, 09:45 AM' },
+      { status: 'Technician assigned', date: 'Sep 28, 10:30 AM', active: true }
+    ],
+    relatedIncidents: [
+      { id: 'INC-210', issue: 'Flickering display', date: 'Sep 21, 2026', status: 'Resolved' },
+      { id: 'INC-198', issue: 'Overheating warning', date: 'Sep 15, 2026', status: 'Resolved' }
+    ]
+  },
+  {
+    id: 'INC-244',
+    issue: 'WiFi connectivity issue',
+    issueType: 'Network',
+    description: 'No internet access in Block A. Affecting multiple classes.',
+    location: 'Block A',
+    equipment: 'Router A-12',
+    reportedBy: 'Student',
+    severity: 'Medium',
+    status: 'In Progress',
+    date: 'Sep 27, 2026, 11:30 AM',
+    healthScore: 65,
+    riskScore: 40,
+    equipmentStatus: 'Moderate',
+    timeline: [
+      { status: 'Report submitted', date: 'Sep 27, 11:30 AM' },
+      { status: 'Status changed to In Progress', date: 'Sep 27, 12:00 PM', active: true }
+    ],
+    relatedIncidents: []
+  },
+  {
+    id: 'INC-243',
+    issue: 'Air conditioner not cooling',
+    issueType: 'HVAC',
+    description: 'AC blowing warm air, making the room unusable.',
+    location: 'Block B',
+    equipment: 'AC042',
+    reportedBy: 'Student',
+    severity: 'Critical',
+    status: 'Open',
+    date: 'Sep 27, 2026, 08:00 AM',
+    healthScore: 25,
+    riskScore: 92,
+    equipmentStatus: 'Critical',
+    timeline: [
+      { status: 'Report submitted', date: 'Sep 27, 08:00 AM', active: true }
+    ],
+    relatedIncidents: [
+      { id: 'INC-205', issue: 'Loud noise from vent', date: 'Sep 18, 2026', status: 'Resolved' }
+    ]
+  },
+  {
+    id: 'INC-242',
+    issue: 'Printer not responding',
+    issueType: 'Printer',
+    description: 'Library printer is offline and not accepting print jobs.',
+    location: 'Library',
+    equipment: 'Printer LIB-01',
+    reportedBy: 'Student',
+    severity: 'Low',
+    status: 'Resolved',
+    date: 'Sep 26, 2026, 03:20 PM',
+    healthScore: 85,
+    riskScore: 15,
+    equipmentStatus: 'Good',
+    timeline: [
+      { status: 'Report submitted', date: 'Sep 26, 03:20 PM' },
+      { status: 'Status changed to In Progress', date: 'Sep 26, 04:00 PM' },
+      { status: 'Technician resolved the issue', date: 'Sep 26, 05:30 PM', active: true }
+    ],
+    relatedIncidents: []
+  }
+];
+
 export const user = {
   name: 'Khuushi',
   role: 'student', // or 'admin'

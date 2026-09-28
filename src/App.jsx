@@ -11,6 +11,8 @@ import Profile from './pages/student/Profile';
 
 import AdminLayout from './components/AdminLayout';
 import AdminDashboard from './pages/admin/AdminDashboard';
+import AdminIncidents from './pages/admin/Incidents';
+import AdminIncidentDetails from './pages/admin/IncidentDetails';
 
 function App() {
   return (
@@ -33,7 +35,8 @@ function App() {
         <Route path="/admin" element={<AdminLayout />}>
           <Route index element={<Navigate to="/admin/dashboard" replace />} />
           <Route path="dashboard" element={<AdminDashboard />} />
-          <Route path="incidents" element={<div className="p-8">Incidents Placeholder</div>} />
+          <Route path="incidents" element={<AdminIncidents />} />
+          <Route path="incidents/:id" element={<AdminIncidentDetails />} />
           <Route path="equipment" element={<div className="p-8">Equipment Placeholder</div>} />
           <Route path="risk-ranking" element={<div className="p-8">Risk Ranking Placeholder</div>} />
           <Route path="hotspots" element={<div className="p-8">Hotspots Placeholder</div>} />
