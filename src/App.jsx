@@ -9,6 +9,9 @@ import ReportDetails from './pages/student/ReportDetails';
 import Notifications from './pages/student/Notifications';
 import Profile from './pages/student/Profile';
 
+import AdminLayout from './components/AdminLayout';
+import AdminDashboard from './pages/admin/AdminDashboard';
+
 function App() {
   return (
     <Router>
@@ -24,6 +27,19 @@ function App() {
           <Route path="student/notifications" element={<Notifications />} />
           <Route path="student/profile" element={<Profile />} />
           {/* Add more routes here later */}
+        </Route>
+        
+        {/* Admin Routes */}
+        <Route path="/admin" element={<AdminLayout />}>
+          <Route index element={<Navigate to="/admin/dashboard" replace />} />
+          <Route path="dashboard" element={<AdminDashboard />} />
+          <Route path="incidents" element={<div className="p-8">Incidents Placeholder</div>} />
+          <Route path="equipment" element={<div className="p-8">Equipment Placeholder</div>} />
+          <Route path="risk-ranking" element={<div className="p-8">Risk Ranking Placeholder</div>} />
+          <Route path="hotspots" element={<div className="p-8">Hotspots Placeholder</div>} />
+          <Route path="alerts" element={<div className="p-8">Alerts Placeholder</div>} />
+          <Route path="maintenance" element={<div className="p-8">Maintenance Placeholder</div>} />
+          <Route path="profile" element={<div className="p-8">Admin Profile Placeholder</div>} />
         </Route>
       </Routes>
     </Router>

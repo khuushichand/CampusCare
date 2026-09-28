@@ -64,6 +64,29 @@ export const addReport = (report) => {
 // Kept for backward compatibility if any old files still import it directly
 export const reports = initialReports;
 
+export const issueTrends = [
+  { name: 'Mon', issues: 12 },
+  { name: 'Tue', issues: 19 },
+  { name: 'Wed', issues: 15 },
+  { name: 'Thu', issues: 22 },
+  { name: 'Fri', issues: 18 },
+  { name: 'Sat', issues: 8 },
+  { name: 'Sun', issues: 5 },
+];
+
+export const highRiskEquipment = [
+  { id: 'P001', type: 'Projector', location: 'Lab 204', health: 45, risk: 85, status: 'Critical' },
+  { id: 'AC011', type: 'Air Conditioner', location: 'Block A', health: 55, risk: 70, status: 'Warning' },
+  { id: 'PC024', type: 'Computer', location: 'Computer Lab 2', health: 60, risk: 65, status: 'Warning' },
+  { id: 'PR008', type: 'Printer', location: 'Library', health: 30, risk: 90, status: 'Critical' },
+];
+
+export const recentAlerts = [
+  { id: 1, title: 'Critical equipment risk increased', message: 'Projector P001 risk score exceeded 80 threshold.', severity: 'Critical', time: '10 mins ago' },
+  { id: 2, title: 'Multiple reports detected', message: '3 new reports filed for AC in Block A.', severity: 'Warning', time: '1 hour ago' },
+  { id: 3, title: 'High complaint activity', message: 'Lab 204 has received 5 complaints today.', severity: 'Warning', time: '2 hours ago' },
+];
+
 export const user = {
   name: 'Khuushi',
   role: 'student', // or 'admin'
