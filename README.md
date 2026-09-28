@@ -1,16 +1,68 @@
-# React + Vite
+# CampusCare
+Intelligent Campus Maintenance & Issue Prediction System
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+## Project Overview
+Explain the campus maintenance problem and your solution.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+### Student
+- Report campus issues
+- Track submitted reports
+- View report status
+- Receive notifications
+- Manage profile
 
-## React Compiler
+### Admin
+- Monitor incidents
+- Manage equipment
+- View equipment health
+- Risk ranking
+- Maintenance hotspots
+- Alerts
+- Maintenance tracking
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Technology Stack
 
-## Expanding the Oxlint configuration
+Frontend:
+- React
+- Vite
+- Tailwind CSS
+- React Router
+- Recharts
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+Backend:
+- FastAPI
+
+Database:
+- Redis
+
+## Redis Architecture
+- Hashes → Equipment
+- Streams → Reports
+- Sorted Sets → Risk ranking
+- Sets → Categories/relationships
+- Pub/Sub → Critical alerts
+- TTL → Temporary data
+
+## System Architecture
+
+React → FastAPI → Redis
+
+## Installation
+
+### Frontend
+npm install
+npm run dev
+
+### Backend
+[partner's actual commands]
+
+## Screenshots
+[Add screenshots of your UI]
+
+## Team Members
+[Your names/roles]
+
+## Future Improvements
+...
