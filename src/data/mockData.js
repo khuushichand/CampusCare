@@ -328,6 +328,92 @@ export const hotspotRecentIssues = [
   { id: 'INC-245', location: 'Lab 204', issue: 'Projector not working', equipment: 'P001', equipmentId: 'P001', severity: 'High', status: 'Open' }
 ];
 
+export const adminAlerts = [
+  {
+    id: 'ALT-01',
+    title: 'Critical equipment risk detected',
+    description: 'P001 Projector in Lab 204 has reached a high risk score.',
+    severity: 'Critical',
+    status: 'Unread',
+    createdAt: '10 mins ago',
+    equipmentId: 'P001',
+    location: 'Lab 204'
+  },
+  {
+    id: 'ALT-02',
+    title: 'Multiple reports detected',
+    description: 'AC011 has received multiple recent complaints.',
+    severity: 'Warning',
+    status: 'Unread',
+    createdAt: '1 hour ago',
+    equipmentId: 'AC011',
+    location: 'Block A'
+  },
+  {
+    id: 'ALT-03',
+    title: 'Maintenance overdue',
+    description: 'PC024 has not received scheduled maintenance.',
+    severity: 'Warning',
+    status: 'Read',
+    createdAt: '5 hours ago',
+    equipmentId: 'PC024',
+    location: 'Computer Lab 2'
+  },
+  {
+    id: 'ALT-04',
+    title: 'Hotspot activity increased',
+    description: 'Computer Lab 2 has unusually high issue activity.',
+    severity: 'Informational',
+    status: 'Read',
+    createdAt: '1 day ago',
+    location: 'Computer Lab 2'
+  }
+];
+
+export const adminMaintenance = [
+  {
+    id: 'MNT-102',
+    equipmentId: 'P001',
+    equipmentName: 'Projector',
+    location: 'Lab 204',
+    maintenanceType: 'Repair',
+    scheduledDate: '2026-09-29',
+    technician: 'Maintenance Team',
+    status: 'Scheduled',
+    incidentId: 'INC-245'
+  },
+  {
+    id: 'MNT-101',
+    equipmentId: 'AC011',
+    equipmentName: 'Air Conditioner',
+    location: 'Block A',
+    maintenanceType: 'Inspection',
+    scheduledDate: '2026-09-27',
+    technician: 'Electrical Team',
+    status: 'Overdue'
+  },
+  {
+    id: 'MNT-100',
+    equipmentId: 'PC024',
+    equipmentName: 'Computer',
+    location: 'Computer Lab 2',
+    maintenanceType: 'Routine Maintenance',
+    scheduledDate: '2026-09-25',
+    technician: 'IT Support',
+    status: 'Completed'
+  },
+  {
+    id: 'MNT-099',
+    equipmentId: 'PR008',
+    equipmentName: 'Printer',
+    location: 'Library',
+    maintenanceType: 'Repair',
+    scheduledDate: '2026-09-24',
+    technician: 'IT Support',
+    status: 'In Progress'
+  }
+];
+
 export const user = {
   name: 'Khuushi',
   role: 'student', // or 'admin'
