@@ -176,6 +176,137 @@ export const adminIncidents = [
   }
 ];
 
+export const adminEquipment = [
+  {
+    id: 'P001',
+    name: 'Projector',
+    type: 'Projector',
+    location: 'Lab 204',
+    healthScore: 42,
+    riskScore: 78,
+    status: 'High Risk',
+    lastMaintenance: '2026-08-15',
+    installationDate: '2023-06-15',
+    age: '3 years',
+    failureCount: 7,
+    downtime: '18 hours',
+    riskFactors: [
+      { factor: 'Frequent recent complaints', severity: 'High' },
+      { factor: 'Multiple previous failures', severity: 'Medium' },
+      { factor: 'High downtime', severity: 'Medium' },
+      { factor: 'Aging equipment', severity: 'Low' }
+    ],
+    maintenanceHistory: [
+      { date: '2026-08-15', type: 'Routine Inspection', team: 'Maintenance Team', result: 'Completed' },
+      { date: '2026-06-21', type: 'Lamp Replacement', team: 'Maintenance Team', result: 'Completed' },
+      { date: '2026-03-12', type: 'Repair', team: 'Electrical Team', result: 'Completed' }
+    ],
+    relatedIncidents: [
+      { id: 'INC-245', issue: 'Projector not working', severity: 'High', status: 'Open' },
+      { id: 'INC-231', issue: 'Display flickering', severity: 'Medium', status: 'Resolved' },
+      { id: 'INC-218', issue: 'Projector overheating', severity: 'High', status: 'Resolved' }
+    ]
+  },
+  {
+    id: 'P002',
+    name: 'Projector',
+    type: 'Projector',
+    location: 'Lab 205',
+    healthScore: 86,
+    riskScore: 24,
+    status: 'Healthy',
+    lastMaintenance: '2026-09-05',
+    installationDate: '2024-01-10',
+    age: '2.5 years',
+    failureCount: 1,
+    downtime: '2 hours',
+    riskFactors: [
+      { factor: 'Recent installation', severity: 'Low' }
+    ],
+    maintenanceHistory: [
+      { date: '2026-09-05', type: 'Routine Inspection', team: 'Maintenance Team', result: 'Completed' }
+    ],
+    relatedIncidents: []
+  },
+  {
+    id: 'PC024',
+    name: 'Computer',
+    type: 'Computer',
+    location: 'Computer Lab 2',
+    healthScore: 61,
+    riskScore: 55,
+    status: 'Warning',
+    lastMaintenance: '2026-08-28',
+    installationDate: '2022-08-20',
+    age: '4 years',
+    failureCount: 4,
+    downtime: '12 hours',
+    riskFactors: [
+      { factor: 'Aging equipment', severity: 'High' },
+      { factor: 'Multiple previous failures', severity: 'Medium' }
+    ],
+    maintenanceHistory: [
+      { date: '2026-08-28', type: 'Software Update', team: 'IT Team', result: 'Completed' },
+      { date: '2026-05-10', type: 'Hardware Repair', team: 'IT Team', result: 'Completed' }
+    ],
+    relatedIncidents: [
+      { id: 'INC-212', issue: 'Blue screen error', severity: 'Medium', status: 'Resolved' }
+    ]
+  },
+  {
+    id: 'AC011',
+    name: 'Air Conditioner',
+    type: 'Air Conditioner',
+    location: 'Block A',
+    healthScore: 35,
+    riskScore: 82,
+    status: 'Critical',
+    lastMaintenance: '2026-08-10',
+    installationDate: '2021-04-05',
+    age: '5 years',
+    failureCount: 9,
+    downtime: '36 hours',
+    riskFactors: [
+      { factor: 'High downtime', severity: 'High' },
+      { factor: 'Frequent recent complaints', severity: 'High' },
+      { factor: 'Aging equipment', severity: 'High' }
+    ],
+    maintenanceHistory: [
+      { date: '2026-08-10', type: 'Coolant Refill', team: 'Maintenance Team', result: 'Completed' },
+      { date: '2026-07-02', type: 'Filter Cleaning', team: 'Maintenance Team', result: 'Completed' },
+      { date: '2026-04-15', type: 'Compressor Repair', team: 'Electrical Team', result: 'Completed' }
+    ],
+    relatedIncidents: [
+      { id: 'INC-243', issue: 'Air conditioner not cooling', severity: 'Critical', status: 'Open' },
+      { id: 'INC-220', issue: 'Water leaking from AC', severity: 'High', status: 'Resolved' }
+    ]
+  },
+  {
+    id: 'PR008',
+    name: 'Printer',
+    type: 'Printer',
+    location: 'Library',
+    healthScore: 91,
+    riskScore: 15,
+    status: 'Healthy',
+    lastMaintenance: '2026-09-12',
+    installationDate: '2025-02-14',
+    age: '1.5 years',
+    failureCount: 2,
+    downtime: '4 hours',
+    riskFactors: [
+      { factor: 'Low consumable levels', severity: 'Low' }
+    ],
+    maintenanceHistory: [
+      { date: '2026-09-12', type: 'Toner Replacement', team: 'IT Support', result: 'Completed' },
+      { date: '2026-05-20', type: 'Paper Jam Fix', team: 'IT Support', result: 'Completed' }
+    ],
+    relatedIncidents: [
+      { id: 'INC-242', issue: 'Printer not responding', severity: 'Low', status: 'Resolved' }
+    ]
+  }
+];
+
 export const user = {
   name: 'Khuushi',
   role: 'student', // or 'admin'

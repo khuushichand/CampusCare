@@ -13,6 +13,8 @@ import AdminLayout from './components/AdminLayout';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminIncidents from './pages/admin/Incidents';
 import AdminIncidentDetails from './pages/admin/IncidentDetails';
+import AdminEquipment from './pages/admin/Equipment';
+import AdminEquipmentDetails from './pages/admin/EquipmentDetails';
 
 function App() {
   return (
@@ -37,7 +39,8 @@ function App() {
           <Route path="dashboard" element={<AdminDashboard />} />
           <Route path="incidents" element={<AdminIncidents />} />
           <Route path="incidents/:id" element={<AdminIncidentDetails />} />
-          <Route path="equipment" element={<div className="p-8">Equipment Placeholder</div>} />
+          <Route path="equipment" element={<AdminEquipment />} />
+          <Route path="equipment/:id" element={<AdminEquipmentDetails />} />
           <Route path="risk-ranking" element={<div className="p-8">Risk Ranking Placeholder</div>} />
           <Route path="hotspots" element={<div className="p-8">Hotspots Placeholder</div>} />
           <Route path="alerts" element={<div className="p-8">Alerts Placeholder</div>} />
