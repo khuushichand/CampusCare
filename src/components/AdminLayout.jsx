@@ -1,9 +1,11 @@
 import React from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useNavigate } from 'react-router-dom';
 import AdminSidebar from './AdminSidebar';
 import { Bell } from 'lucide-react';
 
 const AdminLayout = () => {
+  const navigate = useNavigate();
+
   return (
     <div className="flex min-h-screen bg-campus-bg font-sans">
       <AdminSidebar />
@@ -19,9 +21,12 @@ const AdminLayout = () => {
               <Bell className="w-5 h-5" />
               <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
             </button>
-            <div className="flex items-center justify-center w-8 h-8 rounded-full bg-purple-600 text-white font-medium text-sm">
+            <button 
+              onClick={() => navigate('/admin/profile')}
+              className="flex items-center justify-center w-8 h-8 rounded-full bg-purple-600 text-white font-medium text-sm hover:bg-purple-700 transition-colors"
+            >
               A
-            </div>
+            </button>
           </div>
         </header>
 

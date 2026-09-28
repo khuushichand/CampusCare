@@ -19,6 +19,7 @@ import AdminRiskRanking from './pages/admin/RiskRanking';
 import AdminHotspots from './pages/admin/Hotspots';
 import AdminAlerts from './pages/admin/Alerts';
 import AdminMaintenance from './pages/admin/Maintenance';
+import AdminProfile from './pages/admin/Profile';
 
 function App() {
   return (
@@ -49,7 +50,7 @@ function App() {
           <Route path="hotspots" element={<AdminHotspots />} />
           <Route path="alerts" element={<AdminAlerts />} />
           <Route path="maintenance" element={<AdminMaintenance />} />
-          <Route path="profile" element={<div className="p-8">Admin Profile Placeholder</div>} />
+          <Route path="profile" element={<AdminProfile />} />
         </Route>
       </Routes>
     </Router>
