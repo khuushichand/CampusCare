@@ -307,6 +307,27 @@ export const adminEquipment = [
   }
 ];
 
+export const adminRiskRanking = [
+  { id: 'AC011', name: 'Air Conditioner', type: 'Air Conditioner', location: 'Block A', healthScore: 35, riskScore: 82, recentReports: 5, failureCount: 9, status: 'Critical' },
+  { id: 'P001', name: 'Projector', type: 'Projector', location: 'Lab 204', healthScore: 42, riskScore: 78, recentReports: 4, failureCount: 7, status: 'High Risk' },
+  { id: 'PC024', name: 'Computer', type: 'Computer', location: 'Computer Lab 2', healthScore: 61, riskScore: 55, recentReports: 3, failureCount: 4, status: 'Warning' },
+  { id: 'PR008', name: 'Printer', type: 'Printer', location: 'Library', healthScore: 91, riskScore: 15, recentReports: 1, failureCount: 2, status: 'Healthy' }
+];
+
+export const adminHotspots = [
+  { location: 'Computer Lab 2', totalReports: 12, activeIncidents: 4, criticalIssues: 2, level: 'High' },
+  { location: 'Block A', totalReports: 9, activeIncidents: 3, criticalIssues: 1, level: 'High' },
+  { location: 'Lab 204', totalReports: 7, activeIncidents: 2, criticalIssues: 1, level: 'Medium' },
+  { location: 'Library', totalReports: 4, activeIncidents: 1, criticalIssues: 0, level: 'Low' }
+];
+
+export const hotspotRecentIssues = [
+  { id: 'INC-246', location: 'Computer Lab 2', issue: 'Computer not starting', equipment: 'PC024', equipmentId: 'PC024', severity: 'High', status: 'Open' },
+  { id: 'INC-247', location: 'Computer Lab 2', issue: 'System freezing', equipment: 'PC019', equipmentId: 'PC019', severity: 'Medium', status: 'In Progress' },
+  { id: 'INC-243', location: 'Block A', issue: 'Air conditioner not cooling', equipment: 'AC011', equipmentId: 'AC011', severity: 'Critical', status: 'Open' },
+  { id: 'INC-245', location: 'Lab 204', issue: 'Projector not working', equipment: 'P001', equipmentId: 'P001', severity: 'High', status: 'Open' }
+];
+
 export const user = {
   name: 'Khuushi',
   role: 'student', // or 'admin'

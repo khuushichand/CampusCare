@@ -15,6 +15,8 @@ import AdminIncidents from './pages/admin/Incidents';
 import AdminIncidentDetails from './pages/admin/IncidentDetails';
 import AdminEquipment from './pages/admin/Equipment';
 import AdminEquipmentDetails from './pages/admin/EquipmentDetails';
+import AdminRiskRanking from './pages/admin/RiskRanking';
+import AdminHotspots from './pages/admin/Hotspots';
 
 function App() {
   return (
@@ -41,8 +43,8 @@ function App() {
           <Route path="incidents/:id" element={<AdminIncidentDetails />} />
           <Route path="equipment" element={<AdminEquipment />} />
           <Route path="equipment/:id" element={<AdminEquipmentDetails />} />
-          <Route path="risk-ranking" element={<div className="p-8">Risk Ranking Placeholder</div>} />
-          <Route path="hotspots" element={<div className="p-8">Hotspots Placeholder</div>} />
+          <Route path="risk-ranking" element={<AdminRiskRanking />} />
+          <Route path="hotspots" element={<AdminHotspots />} />
           <Route path="alerts" element={<div className="p-8">Alerts Placeholder</div>} />
           <Route path="maintenance" element={<div className="p-8">Maintenance Placeholder</div>} />
           <Route path="profile" element={<div className="p-8">Admin Profile Placeholder</div>} />
