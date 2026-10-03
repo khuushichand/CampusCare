@@ -30,3 +30,19 @@ class ReportResponse(BaseModel):
     equipment_id: Optional[str] = None
     status: str
     created_at: str
+
+# ==================================================
+# MAINTENANCE SCHEMAS
+# ==================================================
+
+class MaintenanceCreate(BaseModel):
+    equipment_id: str
+    title: str
+    description: str
+    technician: str
+    scheduled_date: str
+    status: str = "SCHEDULED"
+
+
+class MaintenanceStatusUpdate(BaseModel):
+    status: str

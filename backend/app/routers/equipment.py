@@ -9,33 +9,46 @@ router = APIRouter(
 )
 
 
+EQUIPMENT_INDEX_KEY = "campuscare:equipment:index"
+EQUIPMENT_KEY_PREFIX = "campuscare:equipment:"
+
+
 # --------------------------------------------------
 # GET ALL EQUIPMENT
 # --------------------------------------------------
 
 @router.get("")
 async def get_all_equipment():
-    keys = await redis_client.keys("campuscare:equipment:*")
+
+    equipment_ids = await redis_client.smembers(
+        EQUIPMENT_INDEX_KEY
+    )
 
     equipment_list = []
 
-    for key in keys:
+    for equipment_id in equipment_ids:
+
+        key = f"{EQUIPMENT_KEY_PREFIX}{equipment_id}"
+
         equipment = await redis_client.hgetall(key)
 
-        if equipment:
-            equipment["health_score"] = int(
-                equipment.get("health_score", 0)
-            )
+        if not equipment:
+            continue
 
-            equipment["risk_score"] = int(
-                equipment.get("risk_score", 0)
-            )
+        # Convert numeric fields to proper numbers
+        equipment["health_score"] = int(
+            equipment.get("health_score", 0)
+        )
 
-            equipment["failure_count"] = int(
-                equipment.get("failure_count", 0)
-            )
+        equipment["risk_score"] = float(
+            equipment.get("risk_score", 0)
+        )
 
-            equipment_list.append(equipment)
+        equipment["failure_count"] = int(
+            equipment.get("failure_count", 0)
+        )
+
+        equipment_list.append(equipment)
 
     return {
         "count": len(equipment_list),
@@ -49,7 +62,8 @@ async def get_all_equipment():
 
 @router.get("/{equipment_id}")
 async def get_equipment(equipment_id: str):
-    key = f"campuscare:equipment:{equipment_id}"
+
+    key = f"{EQUIPMENT_KEY_PREFIX}{equipment_id}"
 
     equipment = await redis_client.hgetall(key)
 
@@ -59,11 +73,12 @@ async def get_equipment(equipment_id: str):
             detail="Equipment not found",
         )
 
+    # Convert numeric fields to proper numbers
     equipment["health_score"] = int(
         equipment.get("health_score", 0)
     )
 
-    equipment["risk_score"] = int(
+    equipment["risk_score"] = float(
         equipment.get("risk_score", 0)
     )
 

@@ -7,6 +7,9 @@ from app.seed_data import seed_equipment
 from app.routers.equipment import router as equipment_router
 from app.routers.reports import router as reports_router
 from app.routers.incidents import router as incidents_router
+from app.routers.maintenance import router as maintenance_router
+from app.routers.risk import router as risk_router
+from app.routers.alerts import router as alerts_router
 
 # --------------------------------------------------
 # FASTAPI APP
@@ -43,6 +46,9 @@ app.add_middleware(
 app.include_router(equipment_router)
 app.include_router(reports_router)
 app.include_router(incidents_router)
+app.include_router(maintenance_router)
+app.include_router(risk_router)
+app.include_router(alerts_router)
 
 # --------------------------------------------------
 # ROOT

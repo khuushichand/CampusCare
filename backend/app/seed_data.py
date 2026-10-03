@@ -50,16 +50,33 @@ EQUIPMENT = [
 
 
 async def seed_equipment():
+
     for equipment in EQUIPMENT:
+
         equipment_id = equipment["id"]
 
-        # Store equipment as a Redis HASH
+        # --------------------------------------------------
+        # STORE EQUIPMENT AS REDIS HASH
+        # --------------------------------------------------
+
         await redis_client.hset(
             f"campuscare:equipment:{equipment_id}",
             mapping=equipment,
         )
 
-        # Store risk score in Redis SORTED SET
+        # --------------------------------------------------
+        # STORE EQUIPMENT ID IN EQUIPMENT INDEX
+        # --------------------------------------------------
+
+        await redis_client.sadd(
+            "campuscare:equipment:index",
+            equipment_id,
+        )
+
+        # --------------------------------------------------
+        # STORE RISK SCORE IN REDIS SORTED SET
+        # --------------------------------------------------
+
         await redis_client.zadd(
             "campuscare:risk:ranking",
             {
@@ -67,13 +84,19 @@ async def seed_equipment():
             },
         )
 
-        # Store location in Redis SET
+        # --------------------------------------------------
+        # STORE LOCATION IN REDIS SET
+        # --------------------------------------------------
+
         await redis_client.sadd(
             "campuscare:locations",
             equipment["location"],
         )
 
-        # Store equipment category/type in Redis SET
+        # --------------------------------------------------
+        # STORE EQUIPMENT CATEGORY/TYPE IN REDIS SET
+        # --------------------------------------------------
+
         await redis_client.sadd(
             "campuscare:categories",
             equipment["type"],
