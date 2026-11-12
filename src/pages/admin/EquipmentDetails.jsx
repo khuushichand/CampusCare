@@ -1,288 +1,1193 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Activity, Calendar, Wrench, Settings, AlertTriangle } from 'lucide-react';
-import { adminEquipment } from '../../data/mockData';
+import {
+  ArrowLeft,
+  Activity,
+  Calendar,
+  Wrench,
+  Settings,
+  AlertTriangle,
+} from 'lucide-react';
 import clsx from 'clsx';
+
+import {
+  getEquipmentById,
+  getMaintenance,
+  getIncidents,
+} from '../../services/api';
+
+
+// ==================================================
+// HELPERS
+// ==================================================
+
+const normalizeList = (data, key) => {
+  if (Array.isArray(data)) {
+    return data;
+  }
+
+  if (Array.isArray(data?.[key])) {
+    return data[key];
+  }
+
+  return [];
+};
+
+
+const getDisplayStatus = (equipment) => {
+  const backendStatus = String(equipment?.status || '').toUpperCase();
+
+  const healthScore = Number(equipment?.health_score ?? 0);
+  const riskScore = Number(equipment?.risk_score ?? 0);
+
+  // Use the actual backend status where possible.
+  if (backendStatus === 'CRITICAL') {
+    return 'Critical';
+  }
+
+  if (backendStatus === 'HIGH RISK') {
+    return 'High Risk';
+  }
+
+  if (
+    backendStatus === 'NEEDS MAINTENANCE' ||
+    backendStatus === 'WARNING'
+  ) {
+    return 'Warning';
+  }
+
+  if (backendStatus === 'OPERATIONAL') {
+    // Operational equipment with elevated risk should
+    // still be visually shown as Warning.
+    if (riskScore >= 70 || healthScore < 40) {
+      return 'Critical';
+    }
+
+    if (riskScore >= 40 || healthScore < 70) {
+      return 'Warning';
+    }
+
+    return 'Healthy';
+  }
+
+  // Fallback based on actual backend scores.
+  if (riskScore >= 70 || healthScore < 40) {
+    return 'Critical';
+  }
+
+  if (riskScore >= 40 || healthScore < 70) {
+    return 'Warning';
+  }
+
+  return 'Healthy';
+};
+
+
+const getSeverityLabel = (severity) => {
+  const value = String(severity || '').toUpperCase();
+
+  switch (value) {
+    case 'CRITICAL':
+      return 'Critical';
+
+    case 'HIGH':
+      return 'High';
+
+    case 'MEDIUM':
+      return 'Medium';
+
+    case 'LOW':
+      return 'Low';
+
+    default:
+      return 'Unknown';
+  }
+};
+
+
+const getIncidentStatusLabel = (status) => {
+  const value = String(status || '').toUpperCase();
+
+  switch (value) {
+    case 'OPEN':
+      return 'Open';
+
+    case 'IN_PROGRESS':
+      return 'In Progress';
+
+    case 'RESOLVED':
+      return 'Resolved';
+
+    case 'CLOSED':
+      return 'Closed';
+
+    default:
+      return status || 'Unknown';
+  }
+};
+
+
+// ==================================================
+// STATUS BADGE
+// ==================================================
 
 const StatusBadge = ({ status }) => {
   const styles = {
-    'Healthy': 'bg-green-100 text-green-700 border-green-200',
-    'Warning': 'bg-orange-100 text-orange-700 border-orange-200',
-    'High Risk': 'bg-red-50 text-red-600 border-red-200',
-    'Critical': 'bg-red-100 text-red-700 border-red-200'
+    Healthy:
+      'bg-green-100 text-green-700 border-green-200',
+
+    Warning:
+      'bg-orange-100 text-orange-700 border-orange-200',
+
+    'High Risk':
+      'bg-red-50 text-red-600 border-red-200',
+
+    Critical:
+      'bg-red-100 text-red-700 border-red-200',
   };
 
   return (
-    <span className={clsx('px-2.5 py-1 rounded-full text-xs font-semibold border', styles[status] || 'bg-slate-100 text-slate-700 border-slate-200')}>
-      {status}
+    <span
+      className={clsx(
+        'px-2.5 py-1 rounded-full text-xs font-semibold border',
+        styles[status] ||
+        'bg-slate-100 text-slate-700 border-slate-200'
+      )}
+    >
+      {status || 'Unknown'}
     </span>
   );
 };
+
+
+// ==================================================
+// SEVERITY BADGE
+// ==================================================
 
 const SeverityBadge = ({ severity }) => {
+  const label = getSeverityLabel(severity);
+
   const styles = {
-    'Critical': 'bg-red-100 text-red-700 border-red-200',
-    'High': 'bg-red-100 text-red-700 border-red-200',
-    'Medium': 'bg-orange-100 text-orange-700 border-orange-200',
-    'Low': 'bg-green-100 text-green-700 border-green-200'
+    Critical:
+      'bg-red-100 text-red-700',
+
+    High:
+      'bg-red-100 text-red-700',
+
+    Medium:
+      'bg-orange-100 text-orange-700',
+
+    Low:
+      'bg-green-100 text-green-700',
+
+    Unknown:
+      'bg-slate-100 text-slate-600',
   };
+
   return (
-    <span className={clsx('px-2 py-0.5 rounded text-[10px] font-bold uppercase', styles[severity])}>
-      {severity}
+    <span
+      className={clsx(
+        'px-2 py-0.5 rounded text-[10px] font-bold uppercase',
+        styles[label] || styles.Unknown
+      )}
+    >
+      {label}
     </span>
   );
 };
 
+
+// ==================================================
+// INCIDENT STATUS BADGE
+// ==================================================
+
 const IncidentStatusBadge = ({ status }) => {
+  const label = getIncidentStatusLabel(status);
+
   const styles = {
-    'Open': 'text-purple-700 bg-purple-50',
-    'In Progress': 'text-blue-700 bg-blue-50',
-    'Resolved': 'text-slate-600 bg-slate-100'
+    Open:
+      'text-purple-700 bg-purple-50',
+
+    'In Progress':
+      'text-blue-700 bg-blue-50',
+
+    Resolved:
+      'text-green-700 bg-green-50',
+
+    Closed:
+      'text-slate-600 bg-slate-100',
+
+    Unknown:
+      'text-slate-600 bg-slate-100',
   };
+
   return (
-    <span className={clsx('px-2 py-0.5 rounded-full text-[10px] font-semibold', styles[status])}>
-      {status}
+    <span
+      className={clsx(
+        'px-2 py-0.5 rounded-full text-[10px] font-semibold',
+        styles[label] || styles.Unknown
+      )}
+    >
+      {label}
     </span>
   );
 };
+
+
+// ==================================================
+// EQUIPMENT DETAILS
+// ==================================================
 
 const EquipmentDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const eq = adminEquipment.find(e => e.id === id);
 
-  if (!eq) {
+  // --------------------------------------------------
+  // STATE
+  // --------------------------------------------------
+
+  const [equipment, setEquipment] = useState(null);
+  const [maintenance, setMaintenance] = useState([]);
+  const [incidents, setIncidents] = useState([]);
+
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  // --------------------------------------------------
+  // LOAD EVERYTHING FROM BACKEND
+  // --------------------------------------------------
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadEquipmentDetails = async () => {
+      try {
+        setLoading(true);
+        setError('');
+
+        const [
+          equipmentResponse,
+          maintenanceResponse,
+          incidentsResponse,
+        ] = await Promise.all([
+          getEquipmentById(id),
+          getMaintenance(),
+          getIncidents(),
+        ]);
+
+        if (cancelled) {
+          return;
+        }
+
+        // --------------------------------------------------
+        // EQUIPMENT
+        // --------------------------------------------------
+
+        const equipmentData =
+          equipmentResponse?.equipment ||
+          equipmentResponse;
+
+        setEquipment(equipmentData);
+
+        // --------------------------------------------------
+        // MAINTENANCE
+        // --------------------------------------------------
+
+        const maintenanceList = normalizeList(
+          maintenanceResponse,
+          'maintenance'
+        );
+
+        const equipmentMaintenance =
+          maintenanceList.filter(
+            (item) =>
+              String(item?.equipment_id || '') === String(id)
+          );
+
+        setMaintenance(equipmentMaintenance);
+
+        // --------------------------------------------------
+        // INCIDENTS
+        // --------------------------------------------------
+
+        const incidentList = normalizeList(
+          incidentsResponse,
+          'incidents'
+        );
+
+        const equipmentIncidents =
+          incidentList.filter(
+            (item) =>
+              String(item?.equipment_id || '') === String(id)
+          );
+
+        setIncidents(equipmentIncidents);
+
+      } catch (err) {
+        if (cancelled) {
+          return;
+        }
+
+        console.error(
+          'Failed to load equipment details:',
+          err
+        );
+
+        setError(
+          err?.message ||
+          'Failed to load equipment details'
+        );
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadEquipmentDetails();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+
+
+  // --------------------------------------------------
+  // LOADING
+  // --------------------------------------------------
+
+  if (loading) {
     return (
-      <div className="max-w-4xl mx-auto text-center mt-12">
-        <h2 className="text-2xl font-bold text-slate-900 mb-2">Equipment not found</h2>
-        <button onClick={() => navigate('/admin/equipment')} className="text-blue-600 font-medium">Back to Equipment</button>
+      <div className="max-w-6xl mx-auto py-20 text-center">
+        <p className="text-slate-500">
+          Loading equipment details...
+        </p>
       </div>
     );
   }
 
+
+  // --------------------------------------------------
+  // ERROR
+  // --------------------------------------------------
+
+  if (error) {
+    return (
+      <div className="max-w-6xl mx-auto py-12">
+        <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-6">
+          <h2 className="font-bold text-lg mb-2">
+            Failed to load equipment
+          </h2>
+
+          <p className="text-sm">
+            {error}
+          </p>
+
+          <button
+            onClick={() =>
+              navigate('/admin/equipment')
+            }
+            className="mt-4 text-sm font-semibold text-blue-600"
+          >
+            ← Back to Equipment
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+
+  // --------------------------------------------------
+  // NOT FOUND
+  // --------------------------------------------------
+
+  if (!equipment) {
+    return (
+      <div className="max-w-4xl mx-auto text-center mt-12">
+        <h2 className="text-2xl font-bold text-slate-900 mb-2">
+          Equipment not found
+        </h2>
+
+        <button
+          onClick={() =>
+            navigate('/admin/equipment')
+          }
+          className="text-blue-600 font-medium"
+        >
+          Back to Equipment
+        </button>
+      </div>
+    );
+  }
+
+
+  // ==================================================
+  // REAL BACKEND VALUES
+  // ==================================================
+
+  const healthScore =
+    Number(equipment.health_score ?? 0);
+
+  const riskScore =
+    Number(equipment.risk_score ?? 0);
+
+  const failureCount =
+    Number(equipment.failure_count ?? 0);
+
+  const displayStatus =
+    getDisplayStatus(equipment);
+
+
+  // ==================================================
+  // RISK FACTORS
+  // ==================================================
+
+  const riskFactors = [];
+
+  if (riskScore >= 70) {
+    riskFactors.push({
+      factor: 'Current Risk Level',
+      severity: 'Critical',
+    });
+  } else if (riskScore >= 40) {
+    riskFactors.push({
+      factor: 'Current Risk Level',
+      severity: 'High',
+    });
+  } else if (riskScore >= 20) {
+    riskFactors.push({
+      factor: 'Current Risk Level',
+      severity: 'Medium',
+    });
+  } else {
+    riskFactors.push({
+      factor: 'Current Risk Level',
+      severity: 'Low',
+    });
+  }
+
+
+  if (failureCount >= 5) {
+    riskFactors.push({
+      factor: 'Historical Failures',
+      severity: 'High',
+    });
+  } else if (failureCount >= 3) {
+    riskFactors.push({
+      factor: 'Historical Failures',
+      severity: 'Medium',
+    });
+  } else {
+    riskFactors.push({
+      factor: 'Historical Failures',
+      severity: 'Low',
+    });
+  }
+
+
+  // ==================================================
+  // RENDER
+  // ==================================================
+
   return (
     <div className="max-w-6xl mx-auto space-y-6">
-      
-      {/* Header */}
+
+      {/* ==================================================
+          HEADER
+      ================================================== */}
+
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+
         <div className="flex items-center gap-4">
-          <button 
-            onClick={() => navigate('/admin/equipment')}
+
+          <button
+            onClick={() =>
+              navigate('/admin/equipment')
+            }
             className="p-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors text-slate-600 shadow-sm"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
+
           <div>
+
             <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold text-slate-900">{eq.name}</h1>
-              <StatusBadge status={eq.status} />
+
+              <h1 className="text-2xl font-bold text-slate-900">
+                {equipment.name}
+              </h1>
+
+              <StatusBadge
+                status={displayStatus}
+              />
+
             </div>
-            <p className="text-slate-500 mt-1 font-medium">{eq.id}</p>
+
+            <p className="text-slate-500 mt-1 font-medium">
+              {equipment.id}
+            </p>
+
           </div>
+
         </div>
+
       </div>
+
+
+      {/* ==================================================
+          MAIN GRID
+      ================================================== */}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* Left / Main Section */}
+
+
+        {/* ==================================================
+            LEFT / MAIN SECTION
+        ================================================== */}
+
         <div className="lg:col-span-2 space-y-6">
-          
-          {/* Equipment Information Card */}
+
+
+          {/* ==================================================
+              EQUIPMENT INFORMATION
+          ================================================== */}
+
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+
             <h3 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2">
-              <Settings className="w-5 h-5 text-blue-600" /> Equipment Information
+
+              <Settings className="w-5 h-5 text-blue-600" />
+
+              Equipment Information
+
             </h3>
-            
+
+
             <div className="grid grid-cols-2 gap-y-6 text-sm">
+
+
+              {/* EQUIPMENT ID */}
+
               <div>
-                <p className="text-slate-500 font-medium mb-1">Equipment ID</p>
-                <p className="font-semibold text-slate-900">{eq.id}</p>
+
+                <p className="text-slate-500 font-medium mb-1">
+                  Equipment ID
+                </p>
+
+                <p className="font-semibold text-slate-900">
+                  {equipment.id}
+                </p>
+
               </div>
+
+
+              {/* EQUIPMENT NAME */}
+
               <div>
-                <p className="text-slate-500 font-medium mb-1">Equipment Name</p>
-                <p className="font-semibold text-slate-900">{eq.name}</p>
+
+                <p className="text-slate-500 font-medium mb-1">
+                  Equipment Name
+                </p>
+
+                <p className="font-semibold text-slate-900">
+                  {equipment.name}
+                </p>
+
               </div>
+
+
+              {/* TYPE */}
+
               <div>
-                <p className="text-slate-500 font-medium mb-1">Type</p>
-                <p className="font-semibold text-slate-900">{eq.type}</p>
+
+                <p className="text-slate-500 font-medium mb-1">
+                  Type
+                </p>
+
+                <p className="font-semibold text-slate-900">
+                  {equipment.type}
+                </p>
+
               </div>
+
+
+              {/* LOCATION */}
+
               <div>
-                <p className="text-slate-500 font-medium mb-1">Location</p>
-                <p className="font-semibold text-slate-900">{eq.location}</p>
+
+                <p className="text-slate-500 font-medium mb-1">
+                  Location
+                </p>
+
+                <p className="font-semibold text-slate-900">
+                  {equipment.location}
+                </p>
+
               </div>
+
+
+              {/* INSTALLATION DATE */}
+
               <div>
-                <p className="text-slate-500 font-medium mb-1 flex items-center gap-1.5"><Calendar className="w-4 h-4"/> Installation Date</p>
-                <p className="font-semibold text-slate-900">{eq.installationDate}</p>
+
+                <p className="text-slate-500 font-medium mb-1 flex items-center gap-1.5">
+
+                  <Calendar className="w-4 h-4" />
+
+                  Installation Date
+
+                </p>
+
+                <p className="font-semibold text-slate-900">
+                  {equipment.installation_date ||
+                    equipment.installationDate ||
+                    'N/A'}
+                </p>
+
               </div>
+
+
+              {/* AGE */}
+
               <div>
-                <p className="text-slate-500 font-medium mb-1 flex items-center gap-1.5"><Activity className="w-4 h-4"/> Age</p>
-                <p className="font-semibold text-slate-900">{eq.age}</p>
+
+                <p className="text-slate-500 font-medium mb-1 flex items-center gap-1.5">
+
+                  <Activity className="w-4 h-4" />
+
+                  Age
+
+                </p>
+
+                <p className="font-semibold text-slate-900">
+                  {equipment.age || 'N/A'}
+                </p>
+
               </div>
+
+
+              {/* LAST MAINTENANCE */}
+
               <div>
-                <p className="text-slate-500 font-medium mb-1 flex items-center gap-1.5"><Wrench className="w-4 h-4"/> Last Maintenance</p>
-                <p className="font-semibold text-slate-900">{eq.lastMaintenance}</p>
+
+                <p className="text-slate-500 font-medium mb-1 flex items-center gap-1.5">
+
+                  <Wrench className="w-4 h-4" />
+
+                  Last Maintenance
+
+                </p>
+
+                <p className="font-semibold text-slate-900">
+                  {equipment.last_maintenance ||
+                    'N/A'}
+                </p>
+
               </div>
+
+
+              {/* TOTAL FAILURES */}
+
               <div>
-                <p className="text-slate-500 font-medium mb-1 flex items-center gap-1.5"><AlertTriangle className="w-4 h-4"/> Total Failures</p>
-                <p className="font-semibold text-slate-900">{eq.failureCount}</p>
+
+                <p className="text-slate-500 font-medium mb-1 flex items-center gap-1.5">
+
+                  <AlertTriangle className="w-4 h-4" />
+
+                  Total Failures
+
+                </p>
+
+                <p className="font-semibold text-slate-900">
+                  {failureCount}
+                </p>
+
               </div>
+
             </div>
-            
+
+
+            {/* CURRENT STATUS */}
+
             <div className="mt-6 pt-6 border-t border-slate-100 flex items-center gap-4">
-                <span className="text-sm font-medium text-slate-500">Current Status:</span>
-                <StatusBadge status={eq.status} />
+
+              <span className="text-sm font-medium text-slate-500">
+                Current Status:
+              </span>
+
+              <StatusBadge
+                status={displayStatus}
+              />
+
             </div>
+
           </div>
 
-          {/* Maintenance History */}
+
+          {/* ==================================================
+              MAINTENANCE HISTORY
+          ================================================== */}
+
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+
             <h3 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2">
-              <Wrench className="w-5 h-5 text-purple-600" /> Maintenance History
+
+              <Wrench className="w-5 h-5 text-purple-600" />
+
+              Maintenance History
+
             </h3>
+
 
             <div className="overflow-x-auto">
+
               <table className="w-full text-left text-sm text-slate-600">
+
                 <thead className="text-xs text-slate-400 uppercase bg-slate-50 border-y border-slate-100">
+
                   <tr>
-                    <th className="px-4 py-3 font-medium rounded-l-lg">Date</th>
-                    <th className="px-4 py-3 font-medium">Maintenance Type</th>
-                    <th className="px-4 py-3 font-medium">Technician/Team</th>
-                    <th className="px-4 py-3 font-medium rounded-r-lg">Result</th>
+
+                    <th className="px-4 py-3 font-medium">
+                      Date
+                    </th>
+
+                    <th className="px-4 py-3 font-medium">
+                      Maintenance Type
+                    </th>
+
+                    <th className="px-4 py-3 font-medium">
+                      Technician/Team
+                    </th>
+
+                    <th className="px-4 py-3 font-medium">
+                      Result
+                    </th>
+
                   </tr>
+
                 </thead>
+
+
                 <tbody className="divide-y divide-slate-100">
-                  {eq.maintenanceHistory.map((maint, idx) => (
-                    <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="px-4 py-3 font-medium text-slate-900">{maint.date}</td>
-                      <td className="px-4 py-3">{maint.type}</td>
-                      <td className="px-4 py-3">{maint.team}</td>
-                      <td className="px-4 py-3">
-                        <span className="text-green-600 font-medium text-xs bg-green-50 px-2 py-0.5 rounded-full">{maint.result}</span>
-                      </td>
-                    </tr>
-                  ))}
-                  {eq.maintenanceHistory.length === 0 && (
+
+                  {maintenance.map((maint, index) => {
+
+                    const date =
+                      maint.scheduled_date ||
+                      maint.date ||
+                      maint.maintenance_date ||
+                      'N/A';
+
+                    const type =
+                      maint.title ||
+                      maint.type ||
+                      maint.maintenance_type ||
+                      'Maintenance';
+
+                    const technician =
+                      maint.technician ||
+                      maint.team ||
+                      maint.technician_team ||
+                      'N/A';
+
+                    const result =
+                      maint.status ||
+                      maint.result ||
+                      'Unknown';
+
+                    return (
+                      <tr
+                        key={
+                          maint.maintenance_id ||
+                          maint.id ||
+                          index
+                        }
+                        className="hover:bg-slate-50/50 transition-colors"
+                      >
+
+                        <td className="px-4 py-3 font-medium text-slate-900">
+                          {date}
+                        </td>
+
+                        <td className="px-4 py-3">
+                          {type}
+                        </td>
+
+                        <td className="px-4 py-3">
+                          {technician}
+                        </td>
+
+                        <td className="px-4 py-3">
+
+                          <span
+                            className={clsx(
+                              'font-medium text-xs px-2 py-0.5 rounded-full',
+                              String(result).toUpperCase() ===
+                                'COMPLETED'
+                                ? 'text-green-600 bg-green-50'
+                                : String(result).toUpperCase() ===
+                                  'IN_PROGRESS'
+                                  ? 'text-blue-600 bg-blue-50'
+                                  : String(result).toUpperCase() ===
+                                    'CANCELLED'
+                                    ? 'text-red-600 bg-red-50'
+                                    : 'text-orange-600 bg-orange-50'
+                            )}
+                          >
+                            {result}
+                          </span>
+
+                        </td>
+
+                      </tr>
+                    );
+                  })}
+
+
+                  {maintenance.length === 0 && (
+
                     <tr>
-                      <td colSpan="4" className="px-4 py-6 text-center text-slate-500">No maintenance records found.</td>
+
+                      <td
+                        colSpan="4"
+                        className="px-4 py-6 text-center text-slate-500"
+                      >
+                        No maintenance records found for this equipment.
+                      </td>
+
                     </tr>
+
                   )}
+
                 </tbody>
+
               </table>
+
             </div>
+
           </div>
 
         </div>
 
-        {/* Right / Side Section */}
+
+        {/* ==================================================
+            RIGHT / SIDE SECTION
+        ================================================== */}
+
         <div className="space-y-6">
-          
-          {/* Health & Risk Card */}
+
+
+          {/* ==================================================
+              EQUIPMENT HEALTH
+          ================================================== */}
+
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+
             <h3 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2">
-              <Activity className="w-5 h-5 text-orange-500" /> Equipment Health
+
+              <Activity className="w-5 h-5 text-orange-500" />
+
+              Equipment Health
+
             </h3>
-            
+
+
             <div className="space-y-6">
-              <div>
-                <div className="flex justify-between text-sm mb-1.5">
-                  <span className="font-semibold text-slate-700">Health Score</span>
-                  <span className={clsx("font-bold", eq.healthScore >= 70 ? "text-green-600" : eq.healthScore >= 40 ? "text-orange-500" : "text-red-600")}>
-                    {eq.healthScore}%
-                  </span>
-                </div>
-                <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                  <div 
-                    className={clsx("h-full rounded-full", eq.healthScore >= 70 ? "bg-green-500" : eq.healthScore >= 40 ? "bg-orange-500" : "bg-red-500")}
-                    style={{ width: `${eq.healthScore}%` }}
-                  ></div>
-                </div>
-              </div>
+
+
+              {/* HEALTH SCORE */}
 
               <div>
+
                 <div className="flex justify-between text-sm mb-1.5">
-                  <span className="font-semibold text-slate-700">Risk Score</span>
-                  <span className={clsx("font-bold", eq.riskScore >= 70 ? "text-red-600" : eq.riskScore >= 40 ? "text-orange-500" : "text-green-600")}>
-                    {eq.riskScore}
+
+                  <span className="font-semibold text-slate-700">
+                    Health Score
                   </span>
+
+                  <span
+                    className={clsx(
+                      'font-bold',
+                      healthScore >= 70
+                        ? 'text-green-600'
+                        : healthScore >= 40
+                          ? 'text-orange-500'
+                          : 'text-red-600'
+                    )}
+                  >
+                    {healthScore}%
+                  </span>
+
                 </div>
+
+
                 <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                  <div 
-                    className={clsx("h-full rounded-full", eq.riskScore >= 70 ? "bg-red-500" : eq.riskScore >= 40 ? "bg-orange-500" : "bg-green-500")}
-                    style={{ width: `${eq.riskScore}%` }}
-                  ></div>
+
+                  <div
+                    className={clsx(
+                      'h-full rounded-full',
+                      healthScore >= 70
+                        ? 'bg-green-500'
+                        : healthScore >= 40
+                          ? 'bg-orange-500'
+                          : 'bg-red-500'
+                    )}
+                    style={{
+                      width: `${Math.min(
+                        100,
+                        Math.max(0, healthScore)
+                      )}%`,
+                    }}
+                  />
+
                 </div>
+
               </div>
+
+
+              {/* RISK SCORE */}
+
+              <div>
+
+                <div className="flex justify-between text-sm mb-1.5">
+
+                  <span className="font-semibold text-slate-700">
+                    Risk Score
+                  </span>
+
+                  <span
+                    className={clsx(
+                      'font-bold',
+                      riskScore >= 70
+                        ? 'text-red-600'
+                        : riskScore >= 40
+                          ? 'text-orange-500'
+                          : 'text-green-600'
+                    )}
+                  >
+                    {riskScore}
+                  </span>
+
+                </div>
+
+
+                <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
+
+                  <div
+                    className={clsx(
+                      'h-full rounded-full',
+                      riskScore >= 70
+                        ? 'bg-red-500'
+                        : riskScore >= 40
+                          ? 'bg-orange-500'
+                          : 'bg-green-500'
+                    )}
+                    style={{
+                      width: `${Math.min(
+                        100,
+                        Math.max(0, riskScore)
+                      )}%`,
+                    }}
+                  />
+
+                </div>
+
+              </div>
+
             </div>
+
+
+            {/* HEALTH SUMMARY */}
 
             <div className="mt-8 grid grid-cols-2 gap-4">
+
+
               <div className="bg-slate-50 rounded-xl p-3 text-center border border-slate-100">
-                <p className="text-xs text-slate-500 font-medium mb-1">Historical Failures</p>
-                <p className="text-xl font-bold text-slate-900">{eq.failureCount}</p>
+
+                <p className="text-xs text-slate-500 font-medium mb-1">
+                  Historical Failures
+                </p>
+
+                <p className="text-xl font-bold text-slate-900">
+                  {failureCount}
+                </p>
+
               </div>
+
+
               <div className="bg-slate-50 rounded-xl p-3 text-center border border-slate-100">
-                <p className="text-xs text-slate-500 font-medium mb-1">Recent Reports</p>
-                <p className="text-xl font-bold text-slate-900">{eq.relatedIncidents.length}</p>
+
+                <p className="text-xs text-slate-500 font-medium mb-1">
+                  Recent Reports
+                </p>
+
+                <p className="text-xl font-bold text-slate-900">
+                  {incidents.length}
+                </p>
+
               </div>
+
+
               <div className="bg-slate-50 rounded-xl p-3 text-center border border-slate-100">
-                <p className="text-xs text-slate-500 font-medium mb-1">Equipment Age</p>
-                <p className="text-base font-bold text-slate-900 mt-1">{eq.age}</p>
+
+                <p className="text-xs text-slate-500 font-medium mb-1">
+                  Equipment Age
+                </p>
+
+                <p className="text-base font-bold text-slate-900 mt-1">
+                  {equipment.age || 'N/A'}
+                </p>
+
               </div>
+
+
               <div className="bg-slate-50 rounded-xl p-3 text-center border border-slate-100">
-                <p className="text-xs text-slate-500 font-medium mb-1">Downtime</p>
-                <p className="text-base font-bold text-slate-900 mt-1">{eq.downtime}</p>
+
+                <p className="text-xs text-slate-500 font-medium mb-1">
+                  Downtime
+                </p>
+
+                <p className="text-base font-bold text-slate-900 mt-1">
+                  {equipment.downtime || 'N/A'}
+                </p>
+
               </div>
+
             </div>
+
           </div>
 
-          {/* Risk Factors */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-            <h3 className="text-lg font-bold text-slate-900 mb-5">Risk Factors</h3>
-            
-            <div className="space-y-3">
-              {eq.riskFactors.map((factor, idx) => (
-                <div key={idx} className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-slate-700">{factor.factor}</span>
-                  <SeverityBadge severity={factor.severity} />
-                </div>
-              ))}
-              {eq.riskFactors.length === 0 && (
-                <p className="text-sm text-slate-500 text-center py-2">No significant risk factors.</p>
-              )}
-            </div>
-          </div>
 
-          {/* Related Incidents */}
+          {/* ==================================================
+              RISK FACTORS
+          ================================================== */}
+
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-            <h3 className="text-lg font-bold text-slate-900 mb-5">Related Incidents</h3>
-            
+
+            <h3 className="text-lg font-bold text-slate-900 mb-5">
+              Risk Factors
+            </h3>
+
+
             <div className="space-y-3">
-              {eq.relatedIncidents.map(inc => (
-                <div 
-                  key={inc.id}
-                  onClick={() => navigate(`/admin/incidents/${inc.id}`)}
-                  className="block p-3 rounded-xl border border-slate-100 hover:border-blue-200 hover:bg-slate-50 transition-colors cursor-pointer"
+
+              {riskFactors.map((factor, index) => (
+
+                <div
+                  key={index}
+                  className="flex items-center justify-between"
                 >
-                  <div className="flex justify-between items-start mb-1">
-                    <span className="font-bold text-sm text-slate-900">{inc.id}</span>
-                    <IncidentStatusBadge status={inc.status} />
-                  </div>
-                  <p className="text-sm text-slate-600 truncate">{inc.issue}</p>
-                  <div className="mt-2">
-                    <SeverityBadge severity={inc.severity} />
-                  </div>
+
+                  <span className="text-sm font-medium text-slate-700">
+                    {factor.factor}
+                  </span>
+
+                  <SeverityBadge
+                    severity={factor.severity}
+                  />
+
                 </div>
+
               ))}
-              {eq.relatedIncidents.length === 0 && (
-                <p className="text-sm text-slate-500 text-center py-2">No related incidents found.</p>
-              )}
+
             </div>
+
+          </div>
+
+
+          {/* ==================================================
+              RELATED INCIDENTS
+          ================================================== */}
+
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+
+            <h3 className="text-lg font-bold text-slate-900 mb-5">
+              Related Incidents
+            </h3>
+
+
+            <div className="space-y-3">
+
+              {incidents.map((incident, index) => {
+
+                const incidentId =
+                  incident.incident_id ||
+                  incident.id;
+
+                const title =
+                  incident.title ||
+                  incident.issue ||
+                  incident.description ||
+                  'Equipment issue';
+
+                const severity =
+                  incident.severity ||
+                  incident.priority ||
+                  'MEDIUM';
+
+                return (
+                  <div
+                    key={incidentId || index}
+                    onClick={() => {
+                      if (incidentId) {
+                        navigate(
+                          `/admin/incidents/${incidentId}`
+                        );
+                      }
+                    }}
+                    className="block p-3 rounded-xl border border-slate-100 hover:border-blue-200 hover:bg-slate-50 transition-colors cursor-pointer"
+                  >
+
+                    <div className="flex justify-between items-start mb-1">
+
+                      <span className="font-bold text-sm text-slate-900">
+                        {incidentId || 'Incident'}
+                      </span>
+
+                      <IncidentStatusBadge
+                        status={incident.status}
+                      />
+
+                    </div>
+
+
+                    <p className="text-sm text-slate-600 truncate">
+                      {title}
+                    </p>
+
+
+                    <div className="mt-2">
+
+                      <SeverityBadge
+                        severity={severity}
+                      />
+
+                    </div>
+
+                  </div>
+                );
+              })}
+
+
+              {incidents.length === 0 && (
+
+                <p className="text-sm text-slate-500 text-center py-2">
+                  No related incidents found.
+                </p>
+
+              )}
+
+            </div>
+
           </div>
 
         </div>
+
       </div>
-      
+
     </div>
   );
 };
+
 
 export default EquipmentDetails;
