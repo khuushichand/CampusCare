@@ -1,7 +1,8 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from datetime import datetime, timezone
 from uuid import uuid4
 
+from app.auth import require_admin
 from app.redis_client import redis_client
 from app.schemas import MaintenanceCreate, MaintenanceStatusUpdate
 from app.services.risk_service import calculate_risk_score
@@ -10,6 +11,7 @@ from app.services.risk_service import calculate_risk_score
 router = APIRouter(
     prefix="/api/maintenance",
     tags=["Maintenance"],
+    dependencies=[Depends(require_admin)],
 )
 
 
@@ -19,6 +21,18 @@ router = APIRouter(
 
 @router.post("")
 async def create_maintenance(data: MaintenanceCreate):
+
+    # Validate that the referenced equipment exists in campuscare:equipment:index
+    equipment_exists = await redis_client.sismember(
+        "campuscare:equipment:index",
+        data.equipment_id,
+    )
+
+    if not equipment_exists:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Equipment '{data.equipment_id}' not found.",
+        )
 
     maintenance_id = f"MAIN-{uuid4().hex[:8].upper()}"
 

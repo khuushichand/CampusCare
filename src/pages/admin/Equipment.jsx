@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Filter, ChevronRight } from 'lucide-react';
+import { Search, Filter, ChevronRight, Loader2, RefreshCw, Activity, Wrench, HeartPulse, Boxes, X } from 'lucide-react';
 import clsx from 'clsx';
 import { getEquipment } from '../../services/api';
 
@@ -41,46 +41,98 @@ const Equipment = () => {
 
   const [equipment, setEquipment] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
+  const [locationFilter, setLocationFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [showFilters, setShowFilters] = useState(true);
 
   // --------------------------------------------------
   // FETCH EQUIPMENT FROM BACKEND
   // --------------------------------------------------
 
-  useEffect(() => {
-    const fetchEquipment = async () => {
-      try {
-        setLoading(true);
-        setError('');
+  const fetchEquipment = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError('');
 
-        const data = await getEquipment();
+      const data = await getEquipment();
 
-        setEquipment(data.equipment || []);
-      } catch (err) {
-        console.error('Failed to fetch equipment:', err);
-        setError(err.message || 'Failed to load equipment.');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchEquipment();
+      const list = Array.isArray(data) ? data : data?.equipment;
+      setEquipment(Array.isArray(list) ? list : []);
+    } catch (err) {
+      console.error('Failed to fetch equipment:', err);
+      setError(err.message || 'Failed to load equipment.');
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
+  useEffect(() => {
+    fetchEquipment();
+  }, [fetchEquipment]);
+
   // --------------------------------------------------
-  // SEARCH
+  // SEARCH, FILTERS + LIVE SUMMARY METRICS
   // --------------------------------------------------
+
+  const getRiskScore = (eq) => {
+    const value = Number(eq.risk_score);
+    return Number.isFinite(value) ? value : 0;
+  };
+
+  const getHealthScore = (eq) => {
+    const value = Number(eq.health_score);
+    return Number.isFinite(value) ? value : 0;
+  };
+
+  const getDisplayStatus = (eq) => {
+    const riskScore = getRiskScore(eq);
+    if (riskScore >= 70) return 'Critical';
+    if (riskScore >= 40) return 'Warning';
+    return 'Healthy';
+  };
 
   const filteredEquipment = equipment.filter((eq) => {
-    const search = searchTerm.toLowerCase();
+    const search = searchTerm.trim().toLowerCase();
 
-    return (
-      eq.name?.toLowerCase().includes(search) ||
-      eq.id?.toLowerCase().includes(search) ||
-      eq.location?.toLowerCase().includes(search)
-    );
+    const matchesSearch =
+      String(eq.name || '').toLowerCase().includes(search) ||
+      String(eq.id || '').toLowerCase().includes(search) ||
+      String(eq.location || '').toLowerCase().includes(search) ||
+      String(eq.type || '').toLowerCase().includes(search);
+
+    const matchesType =
+      !typeFilter ||
+      String(eq.type || '').toLowerCase() === typeFilter.toLowerCase();
+
+    const matchesLocation =
+      !locationFilter ||
+      String(eq.location || '').toLowerCase() === locationFilter.toLowerCase();
+
+    const matchesStatus =
+      !statusFilter || getDisplayStatus(eq) === statusFilter;
+
+    return matchesSearch && matchesType && matchesLocation && matchesStatus;
   });
+
+  const uniqueTypes = [...new Set(equipment.map((eq) => eq.type).filter(Boolean))];
+  const uniqueLocations = [...new Set(equipment.map((eq) => eq.location).filter(Boolean))];
+
+  const criticalCount = equipment.filter((eq) => getDisplayStatus(eq) === 'Critical').length;
+  const warningCount = equipment.filter((eq) => getDisplayStatus(eq) === 'Warning').length;
+  const averageHealth = equipment.length
+    ? Math.round(equipment.reduce((total, eq) => total + getHealthScore(eq), 0) / equipment.length)
+    : 0;
+
+  const hasActiveFilters = Boolean(searchTerm || typeFilter || locationFilter || statusFilter);
+  const clearFilters = () => {
+    setSearchTerm('');
+    setTypeFilter('');
+    setLocationFilter('');
+    setStatusFilter('');
+  };
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
@@ -110,52 +162,163 @@ const Equipment = () => {
             />
           </div>
 
-          <button className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 shadow-sm transition-colors">
+          <button
+            type="button"
+            onClick={() => setShowFilters((current) => !current)}
+            aria-expanded={showFilters}
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 shadow-sm transition-colors"
+          >
             <Filter className="w-4 h-4" />
             Filters
+            {hasActiveFilters && <span className="w-2 h-2 rounded-full bg-blue-600" />}
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate('/admin/risk-ranking')}
+            className="hidden sm:inline-flex items-center gap-2 px-3 py-2.5 bg-blue-50 text-blue-700 rounded-lg text-sm font-semibold hover:bg-blue-100 transition-colors"
+          >
+            <Activity className="w-4 h-4" />
+            Risk Ranking
+          </button>
+          <button
+            type="button"
+            onClick={fetchEquipment}
+            disabled={loading}
+            title="Refresh equipment"
+            className="p-2.5 bg-white border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 shadow-sm disabled:opacity-50"
+          >
+            <RefreshCw className={clsx('w-4 h-4', loading && 'animate-spin')} />
           </button>
         </div>
       </div>
 
-      {/* FILTERS */}
-      <div className="flex items-center gap-4 text-sm mb-4">
-        <select className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm">
-          <option value="">Equipment Type</option>
-          <option value="Projector">Projector</option>
-          <option value="Computer">Computer</option>
-          <option value="AC">AC</option>
-          <option value="Printer">Printer</option>
-        </select>
+      {/* LIVE EQUIPMENT SUMMARY */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium text-slate-500">Total Equipment</p>
+            <span className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+              <Boxes className="w-5 h-5" />
+            </span>
+          </div>
+          <p className="text-2xl font-bold text-slate-900 mt-3">{equipment.length}</p>
+          <p className="text-xs text-slate-400 mt-1">Registered campus assets</p>
+        </div>
 
-        <select className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm">
-          <option value="">Location</option>
-          <option value="Lab 204">Lab 204</option>
-          <option value="Block A">Block A</option>
-          <option value="Computer Lab 2">Computer Lab 2</option>
-          <option value="Admin Block">Admin Block</option>
-        </select>
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium text-slate-500">Critical Risk</p>
+            <span className="w-9 h-9 rounded-xl bg-red-50 text-red-600 flex items-center justify-center">
+              <Activity className="w-5 h-5" />
+            </span>
+          </div>
+          <p className="text-2xl font-bold text-red-600 mt-3">{criticalCount}</p>
+          <p className="text-xs text-slate-400 mt-1">Risk score of 70 or above</p>
+        </div>
 
-        <select className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm">
-          <option value="">Status</option>
-          <option value="Healthy">Healthy</option>
-          <option value="Warning">Warning</option>
-          <option value="Critical">Critical</option>
-        </select>
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium text-slate-500">Needs Attention</p>
+            <span className="w-9 h-9 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center">
+              <Wrench className="w-5 h-5" />
+            </span>
+          </div>
+          <p className="text-2xl font-bold text-orange-600 mt-3">{warningCount}</p>
+          <p className="text-xs text-slate-400 mt-1">Risk score between 40 and 69</p>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium text-slate-500">Average Health</p>
+            <span className="w-9 h-9 rounded-xl bg-green-50 text-green-600 flex items-center justify-center">
+              <HeartPulse className="w-5 h-5" />
+            </span>
+          </div>
+          <p className="text-2xl font-bold text-slate-900 mt-3">{averageHealth}%</p>
+          <p className="text-xs text-slate-400 mt-1">Across registered equipment</p>
+        </div>
       </div>
+
+      {/* FILTERS */}
+      {showFilters && <div className="flex flex-wrap items-center gap-3 text-sm mb-4">
+        <select
+            className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
+          >
+            <option value="">Equipment Type</option>
+            {uniqueTypes.map((t) => (
+              <option key={t} value={t}>{t}</option>
+            ))}
+          </select>
+
+          <select
+            className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+            value={locationFilter}
+            onChange={(e) => setLocationFilter(e.target.value)}
+          >
+            <option value="">Location</option>
+            {uniqueLocations.map((l) => (
+              <option key={l} value={l}>{l}</option>
+            ))}
+          </select>
+
+          <select
+            className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+          >
+            <option value="">Status</option>
+            <option value="Healthy">Healthy</option>
+            <option value="Warning">Warning</option>
+            <option value="Critical">Critical</option>
+          </select>
+        {hasActiveFilters && (
+          <button
+            type="button"
+            onClick={clearFilters}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-blue-600 hover:text-blue-800 font-medium"
+          >
+            <X className="w-4 h-4" />
+            Clear filters
+          </button>
+        )}
+      </div>}
 
       {/* ERROR */}
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg p-4">
-          Failed to load equipment: {error}
+        <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg p-4 flex items-center justify-between">
+          <span>Failed to load equipment: {error}</span>
+          <button
+            onClick={fetchEquipment}
+            className="flex items-center gap-1.5 text-sm font-semibold text-red-700 hover:text-red-900 ml-4"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Retry
+          </button>
         </div>
       )}
 
       {/* TABLE */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-5 py-4 border-b border-slate-100">
+          <div>
+            <h2 className="font-semibold text-slate-900">Equipment Inventory</h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Showing {filteredEquipment.length} of {equipment.length} assets
+            </p>
+          </div>
+          {hasActiveFilters && (
+            <button type="button" onClick={clearFilters} className="text-xs font-semibold text-blue-600 hover:text-blue-800">
+              Reset search and filters
+            </button>
+          )}
+        </div>
         <div className="overflow-x-auto">
 
           {loading ? (
-            <div className="px-6 py-12 text-center text-slate-500">
+            <div className="px-6 py-12 text-center text-slate-500 flex items-center justify-center gap-2">
+              <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
               Loading equipment...
             </div>
           ) : (
@@ -236,7 +399,7 @@ const Equipment = () => {
                               : 'text-red-600'
                         )}
                       >
-                        {eq.health_score}%
+                        {getHealthScore(eq)}%
                       </span>
                     </td>
 
@@ -251,19 +414,19 @@ const Equipment = () => {
                               : 'text-green-600'
                         )}
                       >
-                        {eq.risk_score}
+                        {getRiskScore(eq)}
                       </span>
                     </td>
 
                     <td className="px-6 py-4">
                       <StatusBadge
                         status={eq.status}
-                        riskScore={eq.risk_score}
+                        riskScore={getRiskScore(eq)}
                       />
                     </td>
 
                     <td className="px-6 py-4 text-slate-500">
-                      {eq.last_maintenance}
+                      {eq.last_maintenance || 'Not recorded'}
                     </td>
 
                     <td className="px-6 py-4 text-right">

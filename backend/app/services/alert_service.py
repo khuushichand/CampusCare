@@ -2,6 +2,11 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 from app.redis_client import redis_client
+from app.services.event_publisher import (
+    publish_event,
+    EVENT_ALERT_CREATED,
+    EVENT_ALERT_RESOLVED,
+)
 
 
 ALERT_INDEX_KEY = "campuscare:alerts:index"
@@ -17,6 +22,7 @@ async def create_alert(
     title: str,
     message: str,
     severity: str = "HIGH",
+    client=None,
 ):
     """
     Create or reactivate an alert for an equipment/risk condition.
@@ -29,9 +35,12 @@ async def create_alert(
     - Existing RESOLVED alert -> reactivate it
     """
 
+    r = client or redis_client
+
     existing_alert = await find_existing_alert(
         equipment_id=equipment_id,
         title=title,
+        client=r,
     )
 
     if existing_alert:
@@ -39,7 +48,20 @@ async def create_alert(
         alert_id = existing_alert["alert_id"]
         key = f"campuscare:alert:{alert_id}"
 
-        await redis_client.hset(
+        prev_status = existing_alert.get("status")
+        prev_message = existing_alert.get("message")
+        prev_severity = existing_alert.get("severity")
+
+        # Check if meaningful state change occurs
+        state_changed = (
+            prev_status != "ACTIVE"
+            or prev_message != message
+            or prev_severity != severity
+        )
+
+        # Atomic update and reactivation via MULTI/EXEC transaction pipeline
+        pipe = r.pipeline(transaction=True)
+        pipe.hset(
             key,
             mapping={
                 "message": message,
@@ -47,13 +69,31 @@ async def create_alert(
                 "status": "ACTIVE",
             },
         )
-
-        await redis_client.sadd(
+        pipe.sadd(
             ACTIVE_ALERTS_KEY,
             alert_id,
         )
+        await pipe.execute()
 
-        return await get_alert(alert_id)
+        updated_alert = await get_alert(alert_id, client=r)
+
+        if state_changed:
+            await publish_event(
+                event_type=EVENT_ALERT_CREATED,
+                entity_id=alert_id,
+                data={
+                    "alert_id": alert_id,
+                    "equipment_id": equipment_id,
+                    "title": title,
+                    "message": message,
+                    "severity": severity,
+                    "status": "ACTIVE",
+                    "reactivated": (prev_status == "RESOLVED"),
+                },
+                client=r,
+            )
+
+        return updated_alert
 
     # --------------------------------------------------
     # CREATE NEW ALERT
@@ -77,19 +117,36 @@ async def create_alert(
 
     key = f"campuscare:alert:{alert_id}"
 
-    await redis_client.hset(
+    # Atomic creation and indexing via MULTI/EXEC transaction pipeline
+    pipe = r.pipeline(transaction=True)
+    pipe.hset(
         key,
         mapping=alert,
     )
-
-    await redis_client.sadd(
+    pipe.sadd(
         ALERT_INDEX_KEY,
         alert_id,
     )
-
-    await redis_client.sadd(
+    pipe.sadd(
         ACTIVE_ALERTS_KEY,
         alert_id,
+    )
+    await pipe.execute()
+
+    # Publish alert.created event for new alert
+    await publish_event(
+        event_type=EVENT_ALERT_CREATED,
+        entity_id=alert_id,
+        data={
+            "alert_id": alert_id,
+            "equipment_id": equipment_id,
+            "title": title,
+            "message": message,
+            "severity": severity,
+            "status": "ACTIVE",
+            "reactivated": False,
+        },
+        client=r,
     )
 
     return alert
@@ -102,6 +159,7 @@ async def create_alert(
 async def find_existing_alert(
     equipment_id: str,
     title: str,
+    client=None,
 ):
     """
     Find an alert for the same equipment and alert type.
@@ -109,7 +167,9 @@ async def find_existing_alert(
     Searches both ACTIVE and RESOLVED alerts.
     """
 
-    alert_ids = await redis_client.smembers(
+    r = client or redis_client
+
+    alert_ids = await r.smembers(
         ALERT_INDEX_KEY
     )
 
@@ -120,7 +180,7 @@ async def find_existing_alert(
 
         key = f"campuscare:alert:{alert_id}"
 
-        record = await redis_client.hgetall(key)
+        record = await r.hgetall(key)
 
         if not record:
             continue
@@ -153,9 +213,11 @@ async def find_existing_alert(
 # GET ALL ALERTS
 # --------------------------------------------------
 
-async def get_all_alerts():
+async def get_all_alerts(client=None):
 
-    alert_ids = await redis_client.smembers(
+    r = client or redis_client
+
+    alert_ids = await r.smembers(
         ALERT_INDEX_KEY
     )
 
@@ -168,7 +230,7 @@ async def get_all_alerts():
 
         key = f"campuscare:alert:{alert_id}"
 
-        record = await redis_client.hgetall(key)
+        record = await r.hgetall(key)
 
         if not record:
             continue
@@ -195,11 +257,12 @@ async def get_all_alerts():
 # GET ONE ALERT
 # --------------------------------------------------
 
-async def get_alert(alert_id: str):
+async def get_alert(alert_id: str, client=None):
 
+    r = client or redis_client
     key = f"campuscare:alert:{alert_id}"
 
-    record = await redis_client.hgetall(key)
+    record = await r.hgetall(key)
 
     if not record:
         return None
@@ -225,11 +288,13 @@ async def get_alert(alert_id: str):
 async def update_alert_status(
     alert_id: str,
     status: str,
+    client=None,
 ):
 
+    r = client or redis_client
     key = f"campuscare:alert:{alert_id}"
 
-    exists = await redis_client.exists(key)
+    exists = await r.exists(key)
 
     if not exists:
         return None
@@ -248,27 +313,28 @@ async def update_alert_status(
             f"{sorted(allowed_statuses)}"
         )
 
-    await redis_client.hset(
+    # Atomic status update and index adjustment via MULTI/EXEC transaction pipeline
+    pipe = r.pipeline(transaction=True)
+    pipe.hset(
         key,
         "status",
         status,
     )
 
     if status == "ACTIVE":
-
-        await redis_client.sadd(
+        pipe.sadd(
             ACTIVE_ALERTS_KEY,
             alert_id,
         )
-
     else:
-
-        await redis_client.srem(
+        pipe.srem(
             ACTIVE_ALERTS_KEY,
             alert_id,
         )
 
-    return await get_alert(alert_id)
+    await pipe.execute()
+
+    return await get_alert(alert_id, client=r)
 
 
 # --------------------------------------------------
@@ -277,6 +343,7 @@ async def update_alert_status(
 
 async def resolve_high_risk_alerts(
     equipment_id: str,
+    client=None,
 ):
     """
     Resolve active high-risk alerts when equipment
@@ -287,7 +354,9 @@ async def resolve_high_risk_alerts(
     It remains in the alert history as RESOLVED.
     """
 
-    alert_ids = await redis_client.smembers(
+    r = client or redis_client
+
+    alert_ids = await r.smembers(
         ALERT_INDEX_KEY
     )
 
@@ -300,7 +369,7 @@ async def resolve_high_risk_alerts(
 
         key = f"campuscare:alert:{alert_id}"
 
-        record = await redis_client.hgetall(key)
+        record = await r.hgetall(key)
 
         if not record:
             continue
@@ -327,17 +396,32 @@ async def resolve_high_risk_alerts(
             == "ACTIVE"
         ):
 
-            await redis_client.hset(
+            # Atomic status update and active set removal via MULTI/EXEC pipeline
+            pipe = r.pipeline(transaction=True)
+            pipe.hset(
                 key,
                 "status",
                 "RESOLVED",
             )
-
-            await redis_client.srem(
+            pipe.srem(
                 ACTIVE_ALERTS_KEY,
                 alert_id,
             )
+            await pipe.execute()
 
             resolved.append(alert_id)
+
+            # Publish alert.resolved event
+            await publish_event(
+                event_type=EVENT_ALERT_RESOLVED,
+                entity_id=alert_id,
+                data={
+                    "alert_id": alert_id,
+                    "equipment_id": equipment_id,
+                    "title": decoded_record.get("title", ""),
+                    "status": "RESOLVED",
+                },
+                client=r,
+            )
 
     return resolved

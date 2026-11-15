@@ -1,5 +1,6 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 
+from app.auth import require_admin
 from app.services.risk_service import (
     calculate_risk_score,
     recalculate_all_risks,
@@ -17,7 +18,7 @@ router = APIRouter(
 # CALCULATE RISK FOR ONE EQUIPMENT
 # --------------------------------------------------
 
-@router.post("/{equipment_id}/calculate")
+@router.post("/{equipment_id}/calculate", dependencies=[Depends(require_admin)])
 async def calculate_equipment_risk(
     equipment_id: str,
 ):
@@ -46,7 +47,7 @@ async def calculate_equipment_risk(
 # RECALCULATE ALL EQUIPMENT
 # --------------------------------------------------
 
-@router.post("/calculate-all")
+@router.post("/calculate-all", dependencies=[Depends(require_admin)])
 async def calculate_all_equipment_risks():
 
     results = await recalculate_all_risks()
@@ -62,7 +63,7 @@ async def calculate_all_equipment_risks():
 # GET RISK RANKING
 # --------------------------------------------------
 
-@router.get("/ranking")
+@router.get("/ranking", dependencies=[Depends(require_admin)])
 async def risk_ranking():
 
     ranking = await get_risk_ranking()

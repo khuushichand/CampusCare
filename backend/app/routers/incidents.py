@@ -1,81 +1,23 @@
 from datetime import datetime, timezone
-from uuid import uuid4
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
+from app.auth import require_admin
 from app.redis_client import redis_client
+from app.services.event_publisher import (
+    publish_event,
+    EVENT_INCIDENT_UPDATED,
+)
 
 
 router = APIRouter(
     prefix="/api/incidents",
     tags=["Incidents"],
+    dependencies=[Depends(require_admin)],
 )
 
 
 INCIDENT_KEY_PREFIX = "campuscare:incident:"
-
-
-# ==================================================
-# CREATE INCIDENT
-# ==================================================
-
-@router.post("")
-async def create_incident(
-    report_id: str,
-    equipment_id: str,
-    title: str,
-    description: str,
-    location: str,
-    severity: str = "MEDIUM",
-):
-    """
-    Create a new incident.
-
-    Incidents are stored as Redis Hashes.
-    """
-
-    severity = severity.upper()
-
-    allowed_severities = {
-        "LOW",
-        "MEDIUM",
-        "HIGH",
-        "CRITICAL",
-    }
-
-    if severity not in allowed_severities:
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "message": "Invalid severity",
-                "allowed_severities": sorted(allowed_severities),
-            },
-        )
-
-    incident_id = f"INC-{uuid4().hex[:8].upper()}"
-
-    key = f"{INCIDENT_KEY_PREFIX}{incident_id}"
-
-    incident = {
-        "incident_id": incident_id,
-        "report_id": report_id,
-        "equipment_id": equipment_id,
-        "title": title,
-        "description": description,
-        "location": location,
-        "severity": severity,
-        "status": "OPEN",
-        "created_at": datetime.now(timezone.utc).isoformat(),
-    }
-
-    await redis_client.hset(
-        key,
-        mapping=incident,
-    )
-
-    return {
-        "message": "Incident created successfully",
-        "incident": incident,
-    }
+INCIDENT_REPORTS_KEY_PREFIX = "campuscare:incident:reports:"
 
 
 # ==================================================
@@ -93,6 +35,10 @@ async def get_incidents():
     async for key in redis_client.scan_iter(
         match=f"{INCIDENT_KEY_PREFIX}*"
     ):
+        key_str = key.decode() if isinstance(key, bytes) else key
+        if key_str.startswith(INCIDENT_REPORTS_KEY_PREFIX):
+            continue
+
         incident = await redis_client.hgetall(key)
 
         if incident:
@@ -124,6 +70,16 @@ async def get_incident(incident_id: str):
             detail="Incident not found",
         )
 
+    # Fetch associated report IDs from incident report set
+    link_key = f"{INCIDENT_REPORTS_KEY_PREFIX}{incident_id}"
+    raw_reports = await redis_client.smembers(link_key)
+    report_ids = [
+        r.decode() if isinstance(r, bytes) else r
+        for r in raw_reports
+    ] if raw_reports else []
+
+    incident["reports"] = report_ids
+
     return {
         "incident": incident,
     }
@@ -144,9 +100,9 @@ async def update_incident_status(
 
     key = f"{INCIDENT_KEY_PREFIX}{incident_id}"
 
-    exists = await redis_client.exists(key)
+    incident = await redis_client.hgetall(key)
 
-    if not exists:
+    if not incident:
         raise HTTPException(
             status_code=404,
             detail="Incident not found",
@@ -170,14 +126,42 @@ async def update_incident_status(
             },
         )
 
-    await redis_client.hset(
-        key,
-        mapping={
-            "status": status,
-        },
-    )
+    prev_status = incident.get("status")
 
-    incident = await redis_client.hgetall(key)
+    if prev_status != status:
+        await redis_client.hset(
+            key,
+            mapping={
+                "status": status,
+            },
+        )
+
+        incident = await redis_client.hgetall(key)
+
+        # Normalize report_count as integer
+        raw_rc = incident.get("report_count")
+        try:
+            report_count = int(raw_rc) if raw_rc is not None else 1
+        except (ValueError, TypeError):
+            report_count = 1
+
+        await publish_event(
+            event_type=EVENT_INCIDENT_UPDATED,
+            entity_id=incident_id,
+            data={
+                "incident_id": incident_id,
+                "update_type": "status_change",
+                "previous_status": prev_status,
+                "status": status,
+                "equipment_id": incident.get("equipment_id", ""),
+                "category": incident.get("category", ""),
+                "location": incident.get("location", ""),
+                "report_count": report_count,
+            },
+            client=redis_client,
+        )
+    else:
+        incident = await redis_client.hgetall(key)
 
     return {
         "message": "Incident status updated successfully",

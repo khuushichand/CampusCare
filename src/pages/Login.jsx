@@ -7,13 +7,29 @@ const Login = () => {
   const navigate = useNavigate();
   const [role, setRole] = useState('student');
   const [showPassword, setShowPassword] = useState(false);
+  const [username, setUsername] = useState('');
 
   const handleLogin = (e) => {
     e.preventDefault();
-    if (role === 'student') {
+
+    const isStudent = role === 'student';
+
+    const currentUser = {
+      name: isStudent ? 'Khuushi' : 'Admin User',
+      email: isStudent
+        ? 'khuushi.cs20@university.edu'
+        : username || 'admin@university.edu',
+      usn: isStudent ? '1RV20CS054' : null,
+      student_id: isStudent ? '1RV20CS054' : null,
+      role: role,
+    };
+
+    localStorage.setItem('campuscare_user', JSON.stringify(currentUser));
+
+    if (isStudent) {
+      localStorage.removeItem('campuscare_student_id');
       navigate('/student/dashboard');
     } else {
-      // Future admin route
       navigate('/admin/dashboard');
     }
   };
@@ -24,7 +40,7 @@ const Login = () => {
       <div className="hidden lg:flex flex-col w-1/2 bg-slate-900 text-white p-12 relative overflow-hidden">
         <div className="relative z-10">
           <div className="flex items-center gap-3 mb-12">
-             <div className="w-10 h-10 bg-blue-500 rounded-md flex items-center justify-center">
+            <div className="w-10 h-10 bg-blue-500 rounded-md flex items-center justify-center">
               <span className="text-white text-xl">🏛️</span>
             </div>
           </div>
@@ -33,7 +49,7 @@ const Login = () => {
             Intelligent Campus Maintenance & Issue Prediction System
           </p>
         </div>
-        
+
         {/* Abstract background graphics */}
         <div className="absolute inset-0 opacity-20">
           <div className="absolute top-1/4 -left-1/4 w-[800px] h-[800px] bg-blue-600 rounded-full mix-blend-multiply filter blur-3xl opacity-50"></div>
@@ -82,12 +98,14 @@ const Login = () => {
                 <input
                   type="text"
                   required
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
                   placeholder="Email / USN"
                   className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 />
               </div>
             </div>
-            
+
             <div>
               <div className="relative flex items-center">
                 <Lock className="absolute left-4 w-5 h-5 text-slate-400" />
@@ -122,7 +140,7 @@ const Login = () => {
               Login
             </button>
           </form>
-          
+
           <p className="text-center text-sm text-slate-500 mt-8">
             Don't have an account? <a href="#" className="text-blue-600 font-medium hover:text-blue-700">Contact Admin</a>
           </p>

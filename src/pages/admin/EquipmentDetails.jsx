@@ -7,6 +7,8 @@ import {
   Wrench,
   Settings,
   AlertTriangle,
+  RefreshCw,
+  Loader2,
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -14,6 +16,7 @@ import {
   getEquipmentById,
   getMaintenance,
   getIncidents,
+  calculateRisk,
 } from '../../services/api';
 
 
@@ -251,7 +254,14 @@ const EquipmentDetails = () => {
   const [incidents, setIncidents] = useState([]);
 
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshError, setRefreshError] = useState('');
+  const [lastRefreshed, setLastRefreshed] = useState(null);
   const [error, setError] = useState('');
+
+  // Risk recalculation
+  const [riskCalculating, setRiskCalculating] = useState(false);
+  const [riskMessage, setRiskMessage] = useState('');
 
   // --------------------------------------------------
   // LOAD EVERYTHING FROM BACKEND
@@ -322,6 +332,7 @@ const EquipmentDetails = () => {
           );
 
         setIncidents(equipmentIncidents);
+        setLastRefreshed(new Date());
 
       } catch (err) {
         if (cancelled) {
@@ -350,6 +361,87 @@ const EquipmentDetails = () => {
       cancelled = true;
     };
   }, [id]);
+
+
+  // --------------------------------------------------
+  // REFRESH DETAILS WITHOUT HIDING THE CURRENT PAGE
+  // --------------------------------------------------
+
+  const handleRefresh = async () => {
+    if (refreshing) return;
+
+    try {
+      setRefreshing(true);
+      setRefreshError('');
+
+      const [equipmentResponse, maintenanceResponse, incidentsResponse] =
+        await Promise.all([
+          getEquipmentById(id),
+          getMaintenance(),
+          getIncidents(),
+        ]);
+
+      const equipmentData = equipmentResponse?.equipment || equipmentResponse;
+      if (!equipmentData || typeof equipmentData !== 'object') {
+        throw new Error('Equipment details were not returned by the server.');
+      }
+
+      const maintenanceList = normalizeList(maintenanceResponse, 'maintenance');
+      const incidentList = normalizeList(incidentsResponse, 'incidents');
+
+      setEquipment(equipmentData);
+      setMaintenance(
+        maintenanceList.filter(
+          (item) => String(item?.equipment_id || '') === String(id)
+        )
+      );
+      setIncidents(
+        incidentList.filter(
+          (item) => String(item?.equipment_id || '') === String(id)
+        )
+      );
+      setLastRefreshed(new Date());
+    } catch (err) {
+      console.error('Failed to refresh equipment details:', err);
+      setRefreshError(
+        err?.message || 'Could not refresh equipment details. Showing the last loaded data.'
+      );
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+
+  // --------------------------------------------------
+  // RECALCULATE RISK
+  // --------------------------------------------------
+
+  const handleRecalculateRisk = async () => {
+    if (!equipment?.id) return;
+
+    try {
+      setRiskCalculating(true);
+      setRiskMessage('');
+
+      const result = await calculateRisk(equipment.id);
+
+      // Refresh equipment to get updated risk_score
+      const updated = await getEquipmentById(equipment.id);
+      const updatedEquipment = updated?.equipment || updated;
+
+      setEquipment(updatedEquipment);
+      setLastRefreshed(new Date());
+      setRiskMessage(
+        `Risk recalculated: ${result?.risk_score ?? updatedEquipment?.risk_score ?? 'updated'}`
+      );
+    } catch (err) {
+      setRiskMessage(
+        `Recalculation failed: ${err.message || 'Unknown error'}`
+      );
+    } finally {
+      setRiskCalculating(false);
+    }
+  };
 
 
   // --------------------------------------------------
@@ -425,14 +517,14 @@ const EquipmentDetails = () => {
   // REAL BACKEND VALUES
   // ==================================================
 
-  const healthScore =
-    Number(equipment.health_score ?? 0);
+  const toNumber = (value) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
 
-  const riskScore =
-    Number(equipment.risk_score ?? 0);
-
-  const failureCount =
-    Number(equipment.failure_count ?? 0);
+  const healthScore = toNumber(equipment.health_score);
+  const riskScore = toNumber(equipment.risk_score);
+  const failureCount = toNumber(equipment.failure_count);
 
   const displayStatus =
     getDisplayStatus(equipment);
@@ -514,7 +606,7 @@ const EquipmentDetails = () => {
             <div className="flex items-center gap-3">
 
               <h1 className="text-2xl font-bold text-slate-900">
-                {equipment.name}
+                {equipment.name || 'Unnamed equipment'}
               </h1>
 
               <StatusBadge
@@ -524,14 +616,52 @@ const EquipmentDetails = () => {
             </div>
 
             <p className="text-slate-500 mt-1 font-medium">
-              {equipment.id}
+              {equipment.id || id}
             </p>
 
           </div>
 
         </div>
 
+        {/* PAGE ACTIONS */}
+        <div className="flex flex-col items-end gap-2">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing || loading}
+              className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-50 disabled:opacity-60 disabled:cursor-not-allowed transition-colors shadow-sm"
+            >
+              <RefreshCw className={clsx('w-4 h-4', refreshing && 'animate-spin')} />
+              {refreshing ? 'Refreshing…' : 'Refresh'}
+            </button>
+            <button
+            onClick={handleRecalculateRisk}
+            disabled={riskCalculating}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors shadow-sm"
+          >
+            {riskCalculating ? 'Calculating…' : 'Recalculate Risk'}
+          </button>
+
+          {riskMessage && (
+            <span className="text-xs text-slate-500">
+              {riskMessage}
+            </span>
+          )}
+          </div>
+          {lastRefreshed && (
+            <span className="text-xs text-slate-400">
+              Last updated {lastRefreshed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          )}
+        </div>
+
       </div>
+
+      {refreshError && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-4 py-3 text-sm">
+          {refreshError}
+        </div>
+      )}
 
 
       {/* ==================================================
@@ -575,7 +705,7 @@ const EquipmentDetails = () => {
                 </p>
 
                 <p className="font-semibold text-slate-900">
-                  {equipment.id}
+                  {equipment.id || id}
                 </p>
 
               </div>
@@ -590,7 +720,7 @@ const EquipmentDetails = () => {
                 </p>
 
                 <p className="font-semibold text-slate-900">
-                  {equipment.name}
+                  {equipment.name || 'Unnamed equipment'}
                 </p>
 
               </div>
@@ -605,7 +735,7 @@ const EquipmentDetails = () => {
                 </p>
 
                 <p className="font-semibold text-slate-900">
-                  {equipment.type}
+                  {equipment.type || 'N/A'}
                 </p>
 
               </div>
@@ -620,7 +750,7 @@ const EquipmentDetails = () => {
                 </p>
 
                 <p className="font-semibold text-slate-900">
-                  {equipment.location}
+                  {equipment.location || 'N/A'}
                 </p>
 
               </div>

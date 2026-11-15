@@ -1,6 +1,7 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field
 
+from app.auth import require_admin
 from app.services.alert_service import (
     create_alert,
     get_all_alerts,
@@ -12,6 +13,7 @@ from app.services.alert_service import (
 router = APIRouter(
     prefix="/api/alerts",
     tags=["Alerts"],
+    dependencies=[Depends(require_admin)],
 )
 
 
