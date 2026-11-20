@@ -61,6 +61,12 @@ async def get_alerts_endpoint():
 
     alerts = await get_all_alerts()
 
+    for alert in alerts:
+        if "id" not in alert and "alert_id" in alert:
+            alert["id"] = alert["alert_id"]
+        if "alert_id" not in alert and "id" in alert:
+            alert["alert_id"] = alert["id"]
+
     return {
         "count": len(alerts),
         "alerts": alerts,
@@ -81,6 +87,11 @@ async def get_alert_endpoint(alert_id: str):
             status_code=404,
             detail="Alert not found",
         )
+
+    if "id" not in alert and "alert_id" in alert:
+        alert["id"] = alert["alert_id"]
+    if "alert_id" not in alert and "id" in alert:
+        alert["alert_id"] = alert["id"]
 
     return {
         "alert": alert,

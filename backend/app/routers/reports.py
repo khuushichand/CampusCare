@@ -240,3 +240,85 @@ async def get_report_details(
     return {
         "report": report,
     }
+
+
+# --------------------------------------------------
+# UPDATE REPORT STATUS (ADMIN)
+# --------------------------------------------------
+
+@router.patch("/{report_id}/status", dependencies=[Depends(require_admin)])
+async def update_report_status(
+    report_id: str,
+    status: str,
+):
+    """
+    Update the status of a student report (Admin).
+    Also synchronizes any linked incident in Redis so the entire system reflects the change.
+    """
+    from datetime import datetime, timezone
+    from app.redis_client import redis_client
+    from app.services.event_publisher import publish_event, EVENT_INCIDENT_UPDATED
+
+    status = status.upper()
+    allowed_statuses = {"OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED"}
+    if status not in allowed_statuses:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": "Invalid report status",
+                "allowed_statuses": sorted(allowed_statuses),
+            },
+        )
+
+    from app.constants import (
+    REPORT_KEY_PREFIX,
+    PROCESSED_REPORT_KEY_PREFIX,
+    INCIDENT_KEY_PREFIX,
+)
+
+    report_key = f"{REPORT_KEY_PREFIX}{report_id}"
+    report = await redis_client.hgetall(report_key)
+
+    if not report:
+        raise HTTPException(status_code=404, detail=f"Report '{report_id}' not found.")
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    await redis_client.hset(
+        report_key,
+        mapping={
+            "status": status,
+            "updated_at": now_iso,
+        },
+    )
+
+    # Check if this report is linked to an incident
+    proc_key = f"campuscare:processed_report:{report_id}"
+    linked_incident_id = await redis_client.get(proc_key)
+    if linked_incident_id:
+        inc_id = linked_incident_id.decode() if isinstance(linked_incident_id, bytes) else linked_incident_id
+        inc_key = f"campuscare:incident:{inc_id}"
+        if await redis_client.exists(inc_key):
+            await redis_client.hset(
+                inc_key,
+                mapping={
+                    "status": status,
+                    "updated_at": now_iso,
+                },
+            )
+            await publish_event(
+                event_type=EVENT_INCIDENT_UPDATED,
+                entity_id=inc_id,
+                data={
+                    "incident_id": inc_id,
+                    "update_type": "status_change_from_report",
+                    "status": status,
+                    "trigger_report_id": report_id,
+                },
+                client=redis_client,
+            )
+
+    updated_report = await get_report_by_id(report_id)
+    return {
+        "message": "Report status updated successfully",
+        "report": updated_report,
+    }

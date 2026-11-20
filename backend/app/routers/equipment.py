@@ -48,8 +48,12 @@ async def get_all_equipment():
             equipment.get("failure_count", 0)
         )
 
-        equipment_list.append(equipment)
+        if "id" not in equipment:
+            equipment["id"] = equipment_id
+        if "equipment_id" not in equipment:
+            equipment["equipment_id"] = equipment.get("id", equipment_id)
 
+        equipment_list.append(equipment)
     return {
         "count": len(equipment_list),
         "equipment": equipment_list,
@@ -85,5 +89,10 @@ async def get_equipment(equipment_id: str):
     equipment["failure_count"] = int(
         equipment.get("failure_count", 0)
     )
+
+    if "id" not in equipment:
+        equipment["id"] = equipment_id
+    if "equipment_id" not in equipment:
+        equipment["equipment_id"] = equipment.get("id", equipment_id)
 
     return equipment

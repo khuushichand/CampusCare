@@ -102,6 +102,11 @@ async def get_maintenance():
             for k, v in record.items()
         }
 
+        if "id" not in decoded_record and "maintenance_id" in decoded_record:
+            decoded_record["id"] = decoded_record["maintenance_id"]
+        if "maintenance_id" not in decoded_record and "id" in decoded_record:
+            decoded_record["maintenance_id"] = decoded_record["id"]
+
         maintenance_records.append(decoded_record)
 
     return {
@@ -135,6 +140,11 @@ async def get_maintenance_by_id(maintenance_id: str):
         )
         for k, v in record.items()
     }
+
+    if "id" not in maintenance and "maintenance_id" in maintenance:
+        maintenance["id"] = maintenance["maintenance_id"]
+    if "maintenance_id" not in maintenance and "id" in maintenance:
+        maintenance["maintenance_id"] = maintenance["id"]
 
     return {
         "maintenance": maintenance,
