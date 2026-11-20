@@ -5,11 +5,13 @@ from typing import Optional, List, Dict, Any
 from app.redis_client import redis_client
 
 
-REPORT_STREAM = "campuscare:reports"
-STUDENT_REPORTS_INDEX_PREFIX = "campuscare:student:reports:"
-PROCESSED_REPORT_KEY_PREFIX = "campuscare:processed_report:"
-INCIDENT_KEY_PREFIX = "campuscare:incident:"
-REPORT_KEY_PREFIX = "campuscare:report:"
+from app.constants import (
+    REPORT_STREAM,
+    STUDENT_REPORTS_INDEX_PREFIX,
+    PROCESSED_REPORT_KEY_PREFIX,
+    INCIDENT_KEY_PREFIX,
+    REPORT_KEY_PREFIX,
+)
 
 
 def _decode_dict(d: Dict[Any, Any]) -> Dict[str, Any]:
@@ -164,6 +166,12 @@ async def get_report_by_id(
             incident_raw = await r.hgetall(incident_key)
             if incident_raw:
                 linked_incident = _decode_dict(incident_raw)
+                # Keep report status synchronized with the linked incident status
+                if linked_incident.get("status"):
+                    report_data["status"] = linked_incident["status"]
+                    report_data["incident_status"] = linked_incident["status"]
+                if linked_incident.get("updated_at") and not report_data.get("updated_at"):
+                    report_data["updated_at"] = linked_incident["updated_at"]
 
     report_data["lifecycle_status"] = lifecycle_status
     report_data["incident_id"] = linked_incident_id

@@ -53,6 +53,33 @@ def fake_redis_server():
 @pytest_asyncio.fixture
 async def fake_redis(fake_redis_server):
     r = fakeredis.aioredis.FakeRedis(server=fake_redis_server, decode_responses=True)
+
+    # Attach narrowly scoped test adapter for Lua lock scripts unsupported by fakeredis without lupa
+    from app.lua_scripts import RENEW_LOCK_LUA, RELEASE_LOCK_LUA
+
+    async def fake_eval(script, numkeys, *args):
+        if script == RENEW_LOCK_LUA and numkeys == 1 and len(args) >= 2:
+            key, token = args[0], str(args[1])
+            expiry = int(args[2])
+            current = await r.get(key)
+            if isinstance(current, bytes):
+                current = current.decode()
+            if current == token:
+                await r.expire(key, expiry)
+                return 1
+            return 0
+        if script == RELEASE_LOCK_LUA and numkeys == 1 and len(args) >= 1:
+            key, token = args[0], str(args[1])
+            current = await r.get(key)
+            if isinstance(current, bytes):
+                current = current.decode()
+            if current == token:
+                await r.delete(key)
+                return 1
+            return 0
+        raise NotImplementedError(f"Script not supported in fake_eval: {script}")
+
+    r.eval = fake_eval
     yield r
     await r.aclose()
 
