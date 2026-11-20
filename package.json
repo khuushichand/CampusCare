@@ -18,6 +18,9 @@
     "recharts": "^3.10.1",
     "tailwind-merge": "^3.7.0"
   },
+  "browserslist": [
+    "defaults"
+  ],
   "devDependencies": {
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",

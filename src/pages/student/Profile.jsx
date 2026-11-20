@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
+  ArrowLeft,
   User,
   Mail,
   Hash,
@@ -24,6 +26,7 @@ const getStoredUser = () => {
 };
 
 const Profile = () => {
+  const navigate = useNavigate();
   const [currentUser, setCurrentUser] = useState(getStoredUser);
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
@@ -123,7 +126,14 @@ const Profile = () => {
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
-      <h1 className="text-2xl font-bold text-slate-900 mb-6">Profile Settings</h1>
+      <button
+        onClick={() => navigate('/student/dashboard')}
+        className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-800 transition-colors"
+      >
+        <ArrowLeft className="w-4 h-4" /> Back to Dashboard
+      </button>
+
+      <h1 className="text-2xl font-bold text-slate-900">Profile Settings</h1>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         {/* Header Cover */}
