@@ -31,3 +31,9 @@ CREATION_LOCK_EXPIRY_SEC = int(os.getenv("CREATION_LOCK_EXPIRY_SEC", "10"))
 # Set to 7 days (604,800 seconds) by default to safely guard against duplicate
 # re-deliveries during stream consumer recoveries, while preventing unbounded memory growth.
 PROCESSED_REPORT_RETENTION_SEC = int(os.getenv("PROCESSED_REPORT_RETENTION_SEC", str(7 * 24 * 3600)))
+
+# --------------------------------------------------
+# REDIS KEY PREFIX (for namespacing, test isolation)
+# --------------------------------------------------
+# Default production prefix. Tests can override via REDIS_KEY_PREFIX env var.
+REDIS_KEY_PREFIX = os.getenv("REDIS_KEY_PREFIX", "campuscare:")

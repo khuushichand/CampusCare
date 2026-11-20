@@ -1,3 +1,6 @@
+import asyncio
+import logging
+from contextlib import asynccontextmanager
 from pathlib import Path
 from fastapi.staticfiles import StaticFiles
 
@@ -8,6 +11,7 @@ from app.auth import require_admin
 from app.config import FRONTEND_URL
 from app.redis_client import check_redis
 from app.seed_data import seed_equipment
+from app.workers.report_consumer import run_worker
 from app.routers.equipment import router as equipment_router
 from app.routers.reports import router as reports_router
 from app.routers.incidents import router as incidents_router
@@ -15,6 +19,43 @@ from app.routers.maintenance import router as maintenance_router
 from app.routers.risk import router as risk_router
 from app.routers.alerts import router as alerts_router
 from app.routers.analytics import router as analytics_router
+
+logger = logging.getLogger("main")
+
+
+# --------------------------------------------------
+# LIFESPAN CONTEXT MANAGER
+# --------------------------------------------------
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    consumer_stop = asyncio.Event()
+
+    async def consumer_background_loop():
+        while not consumer_stop.is_set():
+            try:
+                is_connected = await check_redis()
+                if is_connected:
+                    logger.info("Redis connected: launching background report consumer...")
+                    await run_worker(stop_event=consumer_stop)
+                    break
+                else:
+                    await asyncio.sleep(2)
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.debug(f"Waiting for Redis: {e}")
+                await asyncio.sleep(2)
+
+    consumer_task = asyncio.create_task(consumer_background_loop())
+    yield
+    consumer_stop.set()
+    consumer_task.cancel()
+    try:
+        await consumer_task
+    except (asyncio.CancelledError, Exception):
+        pass
+
 
 # --------------------------------------------------
 # FASTAPI APP
@@ -24,6 +65,7 @@ app = FastAPI(
     title="CampusCare Backend",
     description="FastAPI + Redis backend for CampusCare",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 # --------------------------------------------------

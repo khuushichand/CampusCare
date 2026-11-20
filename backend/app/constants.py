@@ -1,0 +1,13 @@
+import os
+from .config import REDIS_KEY_PREFIX
+
+# Base prefixes (all use the configured REDIS_KEY_PREFIX)
+REPORT_STREAM = f"{REDIS_KEY_PREFIX}reports"
+REPORT_KEY_PREFIX = f"{REDIS_KEY_PREFIX}report:"
+INCIDENT_KEY_PREFIX = f"{REDIS_KEY_PREFIX}incident:"
+INCIDENT_REPORTS_KEY_PREFIX = f"{REDIS_KEY_PREFIX}incident:reports:"
+PROCESSED_REPORT_KEY_PREFIX = f"{REDIS_KEY_PREFIX}processed_report:"
+REPORT_INCIDENT_MAP_PREFIX = f"{REDIS_KEY_PREFIX}report_incident:"
+LOCK_REPORT_KEY_PREFIX = f"{REDIS_KEY_PREFIX}lock:report:"
+CREATION_LOCK_KEY_PREFIX = f"{REDIS_KEY_PREFIX}lock:incident_creation:"
+STUDENT_REPORTS_INDEX_PREFIX = f"{REDIS_KEY_PREFIX}student:reports:"
