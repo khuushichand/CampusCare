@@ -9,6 +9,11 @@ import {
   AlertTriangle,
   RefreshCw,
   Loader2,
+  CheckCircle2,
+  Plus,
+  X,
+  Clock,
+  ShieldAlert,
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -17,6 +22,7 @@ import {
   getMaintenance,
   getIncidents,
   calculateRisk,
+  createMaintenance,
 } from '../../services/api';
 
 
@@ -263,6 +269,18 @@ const EquipmentDetails = () => {
   const [riskCalculating, setRiskCalculating] = useState(false);
   const [riskMessage, setRiskMessage] = useState('');
 
+  // Schedule maintenance modal state
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [scheduleForm, setScheduleForm] = useState({
+    title: '',
+    description: '',
+    technician: 'Campus IT Support',
+    scheduled_date: new Date().toISOString().split('T')[0],
+  });
+  const [scheduleSubmitting, setScheduleSubmitting] = useState(false);
+  const [scheduleError, setScheduleError] = useState('');
+  const [scheduleSuccess, setScheduleSuccess] = useState('');
+
   // --------------------------------------------------
   // LOAD EVERYTHING FROM BACKEND
   // --------------------------------------------------
@@ -445,6 +463,56 @@ const EquipmentDetails = () => {
 
 
   // --------------------------------------------------
+  // SCHEDULE MAINTENANCE
+  // --------------------------------------------------
+
+  const handleScheduleSubmit = async (e) => {
+    e.preventDefault();
+    const equipId = equipment?.id || id;
+    if (!scheduleForm.title.trim() || !scheduleForm.scheduled_date) {
+      setScheduleError('Title and scheduled date are required.');
+      return;
+    }
+
+    setScheduleSubmitting(true);
+    setScheduleError('');
+    try {
+      await createMaintenance({
+        equipment_id: equipId,
+        title: scheduleForm.title.trim(),
+        description:
+          scheduleForm.description.trim() || 'Scheduled maintenance service inspection',
+        technician: scheduleForm.technician.trim() || 'Campus IT Support',
+        scheduled_date: scheduleForm.scheduled_date,
+      });
+
+      // Refresh maintenance records
+      const maintenanceResponse = await getMaintenance();
+      const maintenanceList = normalizeList(maintenanceResponse, 'maintenance');
+      setMaintenance(
+        maintenanceList.filter(
+          (item) => String(item?.equipment_id || '') === String(equipId)
+        )
+      );
+
+      setScheduleSuccess(`Maintenance "${scheduleForm.title.trim()}" scheduled successfully!`);
+      setShowScheduleModal(false);
+      setScheduleForm({
+        title: '',
+        description: '',
+        technician: 'Campus IT Support',
+        scheduled_date: new Date().toISOString().split('T')[0],
+      });
+      setTimeout(() => setScheduleSuccess(''), 5000);
+    } catch (err) {
+      setScheduleError(err.message || 'Failed to schedule maintenance.');
+    } finally {
+      setScheduleSubmitting(false);
+    }
+  };
+
+
+  // --------------------------------------------------
   // LOADING
   // --------------------------------------------------
 
@@ -514,7 +582,7 @@ const EquipmentDetails = () => {
 
 
   // ==================================================
-  // REAL BACKEND VALUES
+  // REAL BACKEND VALUES & DERIVED METRICS
   // ==================================================
 
   const toNumber = (value) => {
@@ -526,12 +594,39 @@ const EquipmentDetails = () => {
   const riskScore = toNumber(equipment.risk_score);
   const failureCount = toNumber(equipment.failure_count);
 
-  const displayStatus =
-    getDisplayStatus(equipment);
+  const displayStatus = getDisplayStatus(equipment);
 
+  // Days since last maintenance calculation
+  const getDaysSince = (dateStr) => {
+    if (!dateStr) return null;
+    try {
+      const d = new Date(dateStr);
+      if (Number.isNaN(d.getTime())) return null;
+      const diff = Math.floor((new Date() - d) / (1000 * 60 * 60 * 24));
+      return diff >= 0 ? diff : 0;
+    } catch {
+      return null;
+    }
+  };
+  const daysSinceMaintenance = getDaysSince(equipment.last_maintenance);
+  const isMaintenanceOverdue = daysSinceMaintenance !== null && daysSinceMaintenance > 90;
+
+  // Estimated Operational Availability / Uptime percentage
+  const estimatedAvailability = Math.max(
+    72.0,
+    Math.min(99.9, 100 - (failureCount * 1.5) - ((100 - healthScore) * 0.12))
+  ).toFixed(1);
+
+  // Deterministic Formula Components (matches risk_service.py)
+  const failureComponent = Math.min(failureCount * 10, 50);
+  const healthComponent = Math.min(Math.max((100 - healthScore) * 0.5, 0), 50);
+  const openIncidents = incidents.filter((i) => {
+    const s = String(i.status || '').toUpperCase();
+    return s === 'OPEN' || s === 'IN_PROGRESS';
+  });
 
   // ==================================================
-  // RISK FACTORS
+  // RISK FACTORS LIST
   // ==================================================
 
   const riskFactors = [];
@@ -558,24 +653,53 @@ const EquipmentDetails = () => {
     });
   }
 
-
   if (failureCount >= 5) {
     riskFactors.push({
-      factor: 'Historical Failures',
+      factor: 'Historical Failure Impact',
       severity: 'High',
     });
   } else if (failureCount >= 3) {
     riskFactors.push({
-      factor: 'Historical Failures',
+      factor: 'Historical Failure Impact',
       severity: 'Medium',
     });
   } else {
     riskFactors.push({
-      factor: 'Historical Failures',
+      factor: 'Historical Failure Impact',
       severity: 'Low',
     });
   }
 
+  if (healthScore < 40) {
+    riskFactors.push({
+      factor: 'Hardware Degradation',
+      severity: 'Critical',
+    });
+  } else if (healthScore < 70) {
+    riskFactors.push({
+      factor: 'Hardware Degradation',
+      severity: 'Medium',
+    });
+  } else {
+    riskFactors.push({
+      factor: 'Hardware Degradation',
+      severity: 'Low',
+    });
+  }
+
+  if (isMaintenanceOverdue) {
+    riskFactors.push({
+      factor: 'Service Interval Exceeded',
+      severity: 'High',
+    });
+  }
+
+  if (openIncidents.length > 0) {
+    riskFactors.push({
+      factor: 'Active Reported Issues',
+      severity: openIncidents.length >= 2 ? 'High' : 'Medium',
+    });
+  }
 
   // ==================================================
   // RENDER
@@ -585,7 +709,7 @@ const EquipmentDetails = () => {
     <div className="max-w-6xl mx-auto space-y-6">
 
       {/* ==================================================
-          HEADER
+          HEADER & BREADCRUMB
       ================================================== */}
 
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
@@ -593,12 +717,12 @@ const EquipmentDetails = () => {
         <div className="flex items-center gap-4">
 
           <button
-            onClick={() =>
-              navigate('/admin/equipment')
-            }
-            className="p-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors text-slate-600 shadow-sm"
+            onClick={() => navigate('/admin/equipment')}
+            className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors text-slate-700 shadow-sm font-medium text-sm"
+            title="Back to Equipment list"
           >
-            <ArrowLeft className="w-5 h-5" />
+            <ArrowLeft className="w-4 h-4 text-slate-500" />
+            <span>Equipment</span>
           </button>
 
           <div>
@@ -615,8 +739,14 @@ const EquipmentDetails = () => {
 
             </div>
 
-            <p className="text-slate-500 mt-1 font-medium">
-              {equipment.id || id}
+            <p className="text-slate-500 mt-1 font-medium text-sm flex items-center gap-2">
+              <span className="font-mono bg-slate-100 px-2 py-0.5 rounded text-xs text-slate-700">
+                {equipment.id || id}
+              </span>
+              <span>•</span>
+              <span>{equipment.location || 'Campus Location'}</span>
+              <span>•</span>
+              <span>{equipment.type || 'Equipment'}</span>
             </p>
 
           </div>
@@ -625,44 +755,88 @@ const EquipmentDetails = () => {
 
         {/* PAGE ACTIONS */}
         <div className="flex flex-col items-end gap-2">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={handleRefresh}
               disabled={refreshing || loading}
-              className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-50 disabled:opacity-60 disabled:cursor-not-allowed transition-colors shadow-sm"
+              className="flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-50 disabled:opacity-60 disabled:cursor-not-allowed transition-colors shadow-sm"
+              title="Refresh latest data"
             >
               <RefreshCw className={clsx('w-4 h-4', refreshing && 'animate-spin')} />
-              {refreshing ? 'Refreshing…' : 'Refresh'}
+              <span>{refreshing ? 'Refreshing…' : 'Refresh'}</span>
             </button>
-            <button
-            onClick={handleRecalculateRisk}
-            disabled={riskCalculating}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors shadow-sm"
-          >
-            {riskCalculating ? 'Calculating…' : 'Recalculate Risk'}
-          </button>
 
-          {riskMessage && (
-            <span className="text-xs text-slate-500">
-              {riskMessage}
-            </span>
-          )}
+            <button
+              onClick={() => {
+                setScheduleForm({
+                  title: `${equipment.name || 'Equipment'} Maintenance`,
+                  description: `Routine inspection and service for ${equipment.name || 'equipment'} (${equipment.id || id}) in ${equipment.location || 'campus'}.`,
+                  technician: 'Campus IT Support',
+                  scheduled_date: new Date().toISOString().split('T')[0],
+                });
+                setScheduleError('');
+                setShowScheduleModal(true);
+              }}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-purple-600 text-white rounded-lg text-sm font-semibold hover:bg-purple-700 transition-colors shadow-sm"
+              title="Schedule maintenance for this equipment"
+            >
+              <Wrench className="w-4 h-4" />
+              <span>Schedule Maintenance</span>
+            </button>
+
+            <button
+              onClick={handleRecalculateRisk}
+              disabled={riskCalculating}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors shadow-sm"
+              title="Recalculate deterministic risk score"
+            >
+              <Activity className={clsx('w-4 h-4', riskCalculating && 'animate-pulse')} />
+              <span>{riskCalculating ? 'Calculating…' : 'Recalculate Risk'}</span>
+            </button>
           </div>
-          {lastRefreshed && (
-            <span className="text-xs text-slate-400">
-              Last updated {lastRefreshed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-            </span>
-          )}
+
+          <div className="flex items-center gap-3">
+            {riskMessage && (
+              <span className="text-xs text-blue-600 font-medium">
+                {riskMessage}
+              </span>
+            )}
+            {lastRefreshed && (
+              <span className="text-xs text-slate-400">
+                Updated {lastRefreshed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </span>
+            )}
+          </div>
         </div>
 
       </div>
 
-      {refreshError && (
-        <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-4 py-3 text-sm">
-          {refreshError}
+      {scheduleSuccess && (
+        <div className="bg-green-50 border border-green-200 text-green-800 rounded-xl px-4 py-3 text-sm flex items-center justify-between shadow-sm">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-green-600" />
+            <span>{scheduleSuccess}</span>
+          </div>
+          <button
+            onClick={() => setScheduleSuccess('')}
+            className="text-green-700 hover:text-green-900"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
       )}
 
+      {refreshError && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-4 py-3 text-sm flex items-center justify-between">
+          <span>{refreshError}</span>
+          <button
+            onClick={() => setRefreshError('')}
+            className="text-amber-800 hover:text-amber-950 font-bold ml-2"
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       {/* ==================================================
           MAIN GRID
@@ -1127,60 +1301,62 @@ const EquipmentDetails = () => {
             </div>
 
 
-            {/* HEALTH SUMMARY */}
+            {/* HEALTH & OPERATIONAL SUMMARY */}
 
             <div className="mt-8 grid grid-cols-2 gap-4">
 
-
               <div className="bg-slate-50 rounded-xl p-3 text-center border border-slate-100">
-
                 <p className="text-xs text-slate-500 font-medium mb-1">
                   Historical Failures
                 </p>
-
                 <p className="text-xl font-bold text-slate-900">
                   {failureCount}
                 </p>
-
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Weight: {failureComponent.toFixed(0)}/50 pts
+                </p>
               </div>
 
+              <div className="bg-slate-50 rounded-xl p-3 text-center border border-slate-100">
+                <p className="text-xs text-slate-500 font-medium mb-1">
+                  Active Incidents
+                </p>
+                <p className={clsx(
+                  "text-xl font-bold",
+                  openIncidents.length > 0 ? "text-amber-600" : "text-green-600"
+                )}>
+                  {openIncidents.length}
+                </p>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  {incidents.length} total logged
+                </p>
+              </div>
 
               <div className="bg-slate-50 rounded-xl p-3 text-center border border-slate-100">
-
                 <p className="text-xs text-slate-500 font-medium mb-1">
-                  Recent Reports
+                  Est. Availability
                 </p>
-
                 <p className="text-xl font-bold text-slate-900">
-                  {incidents.length}
+                  {estimatedAvailability}%
                 </p>
-
+                <p className="text-[11px] text-green-600 font-medium mt-0.5">
+                  Uptime rating
+                </p>
               </div>
 
-
               <div className="bg-slate-50 rounded-xl p-3 text-center border border-slate-100">
-
                 <p className="text-xs text-slate-500 font-medium mb-1">
-                  Equipment Age
+                  Service Recency
                 </p>
-
                 <p className="text-base font-bold text-slate-900 mt-1">
-                  {equipment.age || 'N/A'}
+                  {daysSinceMaintenance !== null ? `${daysSinceMaintenance}d ago` : 'None'}
                 </p>
-
-              </div>
-
-
-              <div className="bg-slate-50 rounded-xl p-3 text-center border border-slate-100">
-
-                <p className="text-xs text-slate-500 font-medium mb-1">
-                  Downtime
+                <p className={clsx(
+                  "text-[11px] font-medium mt-0.5",
+                  isMaintenanceOverdue ? "text-red-500 font-semibold" : "text-slate-400"
+                )}>
+                  {isMaintenanceOverdue ? "Overdue (>90d)" : "Within window"}
                 </p>
-
-                <p className="text-base font-bold text-slate-900 mt-1">
-                  {equipment.downtime || 'N/A'}
-                </p>
-
               </div>
 
             </div>
@@ -1189,37 +1365,81 @@ const EquipmentDetails = () => {
 
 
           {/* ==================================================
-              RISK FACTORS
+              PREDICTED RISK BREAKDOWN & FACTORS
           ================================================== */}
 
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-5">
 
-            <h3 className="text-lg font-bold text-slate-900 mb-5">
-              Risk Factors
-            </h3>
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">
+                  Risk Factors &amp; Formula
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Deterministic prediction: Failures (max 50) + Health Degradation (max 50)
+                </p>
+              </div>
+              <StatusBadge status={displayStatus} />
+            </div>
 
+            {/* Formula Breakdown Progress Bars */}
+            <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 space-y-3">
+              <div>
+                <div className="flex justify-between text-xs font-medium mb-1 text-slate-700">
+                  <span>Failure Component (10 pts/failure, max 50)</span>
+                  <span className="font-bold text-slate-900">{failureComponent.toFixed(1)} / 50.0 pts</span>
+                </div>
+                <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
+                  <div
+                    className={clsx(
+                      "h-full rounded-full transition-all duration-500",
+                      failureComponent >= 40 ? "bg-red-500" : failureComponent >= 20 ? "bg-orange-500" : "bg-blue-500"
+                    )}
+                    style={{ width: `${(failureComponent / 50) * 100}%` }}
+                  />
+                </div>
+              </div>
 
-            <div className="space-y-3">
+              <div>
+                <div className="flex justify-between text-xs font-medium mb-1 text-slate-700">
+                  <span>Health Degradation Component ((100 - Health) × 0.5)</span>
+                  <span className="font-bold text-slate-900">{healthComponent.toFixed(1)} / 50.0 pts</span>
+                </div>
+                <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
+                  <div
+                    className={clsx(
+                      "h-full rounded-full transition-all duration-500",
+                      healthComponent >= 30 ? "bg-red-500" : healthComponent >= 15 ? "bg-orange-500" : "bg-green-500"
+                    )}
+                    style={{ width: `${(healthComponent / 50) * 100}%` }}
+                  />
+                </div>
+              </div>
 
+              <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-xs">
+                <span className="font-semibold text-slate-700">Total Calculated Score:</span>
+                <span className="font-bold font-mono text-sm text-blue-600">
+                  {riskScore} / 100.0
+                </span>
+              </div>
+            </div>
+
+            {/* Qualitative Alerts List */}
+            <div className="space-y-2.5">
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                Risk Categorization Factors
+              </p>
               {riskFactors.map((factor, index) => (
-
                 <div
                   key={index}
-                  className="flex items-center justify-between"
+                  className="flex items-center justify-between py-1.5 px-3 rounded-lg bg-slate-50/70 border border-slate-100"
                 >
-
-                  <span className="text-sm font-medium text-slate-700">
+                  <span className="text-xs font-medium text-slate-700">
                     {factor.factor}
                   </span>
-
-                  <SeverityBadge
-                    severity={factor.severity}
-                  />
-
+                  <SeverityBadge severity={factor.severity} />
                 </div>
-
               ))}
-
             </div>
 
           </div>
@@ -1314,6 +1534,141 @@ const EquipmentDetails = () => {
         </div>
 
       </div>
+
+      {/* ==================================================
+          SCHEDULE MAINTENANCE MODAL
+      ================================================== */}
+      {showScheduleModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-100">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-purple-50 rounded-lg text-purple-600">
+                  <Wrench className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900">
+                    Schedule Maintenance
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Equipment: {equipment?.name} ({equipment?.id || id})
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowScheduleModal(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {scheduleError && (
+              <div className="mt-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-xs">
+                {scheduleError}
+              </div>
+            )}
+
+            <form onSubmit={handleScheduleSubmit} className="mt-4 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Service / Task Title *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Compressor filter replacement"
+                  value={scheduleForm.title}
+                  onChange={(e) =>
+                    setScheduleForm((prev) => ({ ...prev, title: e.target.value }))
+                  }
+                  className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Description / Work Details
+                </label>
+                <textarea
+                  rows="3"
+                  placeholder="Detail the issue, symptoms, or standard maintenance procedure..."
+                  value={scheduleForm.description}
+                  onChange={(e) =>
+                    setScheduleForm((prev) => ({ ...prev, description: e.target.value }))
+                  }
+                  className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Technician / Assigned Team *
+                  </label>
+                  <select
+                    value={scheduleForm.technician}
+                    onChange={(e) =>
+                      setScheduleForm((prev) => ({ ...prev, technician: e.target.value }))
+                    }
+                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white"
+                  >
+                    <option value="Campus IT Support">Campus IT Support</option>
+                    <option value="HVAC Engineering Team">HVAC Engineering Team</option>
+                    <option value="Electrical Team">Electrical Team</option>
+                    <option value="Audiovisual Tech Team">Audiovisual Tech Team</option>
+                    <option value="Facilities & Hardware">Facilities &amp; Hardware</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Scheduled Date *
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={scheduleForm.scheduled_date}
+                    onChange={(e) =>
+                      setScheduleForm((prev) => ({ ...prev, scheduled_date: e.target.value }))
+                    }
+                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowScheduleModal(false)}
+                  disabled={scheduleSubmitting}
+                  className="px-4 py-2 border border-slate-200 text-slate-600 rounded-xl text-sm font-semibold hover:bg-slate-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={scheduleSubmitting}
+                  className="flex items-center gap-2 px-5 py-2 bg-purple-600 text-white rounded-xl text-sm font-semibold hover:bg-purple-700 disabled:opacity-60 transition-colors shadow-sm"
+                >
+                  {scheduleSubmitting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Scheduling…</span>
+                    </>
+                  ) : (
+                    <>
+                      <Wrench className="w-4 h-4" />
+                      <span>Confirm Schedule</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
     </div>
   );

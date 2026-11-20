@@ -182,7 +182,11 @@ const IncidentDetails = () => {
       } else {
         setIncident(prev => ({ ...prev, status: selectedStatus }));
       }
-      setStatusFeedback({ type: 'success', message: `Status updated to ${selectedStatus} successfully.` });
+      // Keep associated student reports synchronized
+      setAssociatedReports(prev =>
+        prev.map(r => ({ ...r, status: selectedStatus, incident_status: selectedStatus }))
+      );
+      setStatusFeedback({ type: 'success', message: `Status updated to ${selectedStatus} successfully. Linked student reports synchronized.` });
     } catch (err) {
       console.error("Failed to update status:", err);
       setStatusFeedback({ type: 'error', message: err.message || 'Failed to update status.' });
@@ -268,10 +272,11 @@ const IncidentDetails = () => {
         <div className="flex items-center gap-4">
           <button 
             onClick={() => navigate('/admin/incidents')}
-            className="p-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors text-slate-600 shadow-sm"
+            className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors text-slate-700 shadow-sm font-medium text-sm"
             title="Back to incidents list"
           >
-            <ArrowLeft className="w-5 h-5" />
+            <ArrowLeft className="w-4 h-4 text-slate-500" />
+            <span>Incidents</span>
           </button>
           <div>
             <div className="flex items-center gap-3">

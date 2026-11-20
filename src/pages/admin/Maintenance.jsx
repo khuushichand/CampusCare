@@ -605,6 +605,14 @@ const Maintenance = () => {
                             <Calendar className="w-4 h-4" />
                             {formatDate(m.scheduled_date)}
                           </div>
+                          {m.scheduled_date &&
+                            new Date(m.scheduled_date) <
+                              new Date(new Date().setHours(0, 0, 0, 0)) &&
+                            currentStatus === 'SCHEDULED' && (
+                              <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700 border border-red-200">
+                                Overdue
+                              </span>
+                            )}
                         </td>
 
                         {/* Technician */}
