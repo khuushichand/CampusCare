@@ -5,35 +5,42 @@ import { getMyReports } from '../../services/api';
 import clsx from 'clsx';
 
 const StatusBadge = ({ status, lifecycleStatus }) => {
-  // If report has a linked incident with resolved status
-  if (status === 'RESOLVED' || status === 'Resolved') {
+  const norm = (status || '').toUpperCase();
+
+  if (norm === 'RESOLVED' || norm === 'CLOSED') {
     return (
-      <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
+      <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700 border border-green-200">
         Resolved
       </span>
     );
   }
 
-  // Lifecycle status badge
-  if (lifecycleStatus === 'PROCESSED') {
+  if (norm === 'IN_PROGRESS') {
     return (
-      <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-700">
-        Incident Linked
+      <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-700 border border-blue-200">
+        In Progress
+      </span>
+    );
+  }
+
+  if (lifecycleStatus === 'PROCESSED' || norm === 'OPEN') {
+    return (
+      <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-purple-100 text-purple-700 border border-purple-200">
+        {lifecycleStatus === 'PROCESSED' ? 'Incident Assigned' : 'Open'}
       </span>
     );
   }
 
   if (lifecycleStatus === 'PROCESSING') {
     return (
-      <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-700">
+      <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-orange-100 text-orange-700 border border-orange-200">
         Processing
       </span>
     );
   }
 
-  // Default queued
   return (
-    <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+    <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
       Queued
     </span>
   );
@@ -69,7 +76,8 @@ const MyReports = () => {
   }, []);
 
   const filteredReports = reports.filter(report => {
-    const isResolved = (report.incident?.status || report.status || '').toUpperCase() === 'RESOLVED';
+    const s = (report.incident?.status || report.status || '').toUpperCase();
+    const isResolved = s === 'RESOLVED' || s === 'CLOSED';
     if (filter === 'All') return true;
     if (filter === 'Active') return !isResolved;
     if (filter === 'Resolved') return isResolved;
@@ -77,15 +85,22 @@ const MyReports = () => {
   });
 
   const getStatusIcon = (report) => {
-    const isResolved = (report.incident?.status || report.status || '').toUpperCase() === 'RESOLVED';
-    if (isResolved) return <CheckCircle2 className="w-5 h-5 text-green-500" />;
-    if (report.lifecycle_status === 'PROCESSED') return <Clock className="w-5 h-5 text-purple-500" />;
+    const s = (report.incident?.status || report.status || '').toUpperCase();
+    if (s === 'RESOLVED' || s === 'CLOSED') return <CheckCircle2 className="w-5 h-5 text-green-500" />;
+    if (s === 'IN_PROGRESS') return <Clock className="w-5 h-5 text-blue-500" />;
+    if (report.lifecycle_status === 'PROCESSED' || s === 'OPEN') return <Clock className="w-5 h-5 text-purple-500" />;
     if (report.lifecycle_status === 'PROCESSING') return <AlertCircle className="w-5 h-5 text-orange-500" />;
-    return <Clock className="w-5 h-5 text-blue-500" />;
+    return <Clock className="w-5 h-5 text-slate-400" />;
   };
 
-  const activeCount = reports.filter(r => (r.incident?.status || r.status || '').toUpperCase() !== 'RESOLVED').length;
-  const resolvedCount = reports.filter(r => (r.incident?.status || r.status || '').toUpperCase() === 'RESOLVED').length;
+  const activeCount = reports.filter(r => {
+    const s = (r.incident?.status || r.status || '').toUpperCase();
+    return s !== 'RESOLVED' && s !== 'CLOSED';
+  }).length;
+  const resolvedCount = reports.filter(r => {
+    const s = (r.incident?.status || r.status || '').toUpperCase();
+    return s === 'RESOLVED' || s === 'CLOSED';
+  }).length;
 
   const counts = {
     All: reports.length,

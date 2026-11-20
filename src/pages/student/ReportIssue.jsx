@@ -336,6 +336,13 @@ const ReportIssue = () => {
     <div className="max-w-3xl mx-auto space-y-8">
       {/* Header and Progress */}
       <div>
+        <button
+          type="button"
+          onClick={() => navigate('/student/dashboard')}
+          className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-800 transition-colors mb-4"
+        >
+          <ArrowLeft className="w-4 h-4" /> Back to Dashboard
+        </button>
         <h1 className="text-2xl font-bold text-slate-900 mb-6">Report an Issue</h1>
 
         <div className="flex items-center justify-between relative">

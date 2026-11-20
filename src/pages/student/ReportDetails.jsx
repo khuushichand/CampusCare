@@ -8,32 +8,42 @@ import { getReportById, API_BASE_URL } from '../../services/api';
 import clsx from 'clsx';
 
 const StatusBadge = ({ status, lifecycleStatus }) => {
-  if (status === 'RESOLVED' || status === 'Resolved') {
+  const norm = (status || '').toUpperCase();
+
+  if (norm === 'RESOLVED' || norm === 'CLOSED') {
     return (
-      <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
+      <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700 border border-green-200">
         Resolved
       </span>
     );
   }
 
-  if (lifecycleStatus === 'PROCESSED') {
+  if (norm === 'IN_PROGRESS') {
     return (
-      <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-700">
-        Incident Linked
+      <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-700 border border-blue-200">
+        In Progress
+      </span>
+    );
+  }
+
+  if (lifecycleStatus === 'PROCESSED' || norm === 'OPEN') {
+    return (
+      <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-purple-100 text-purple-700 border border-purple-200">
+        {lifecycleStatus === 'PROCESSED' ? 'Incident Assigned' : 'Open'}
       </span>
     );
   }
 
   if (lifecycleStatus === 'PROCESSING') {
     return (
-      <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-700">
+      <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-orange-100 text-orange-700 border border-orange-200">
         Processing
       </span>
     );
   }
 
   return (
-    <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+    <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
       Queued
     </span>
   );
@@ -73,8 +83,18 @@ const ReportDetails = () => {
       }
     };
 
+    // Initial load
     loadReport();
-    return () => { isMounted = false; };
+
+    // Poll every 15 seconds to keep UI in sync after refreshes or status changes
+    const intervalId = setInterval(() => {
+      if (isMounted) loadReport();
+    }, 15000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(intervalId);
+    };
   }, [id]);
 
   if (isLoading) {
@@ -119,31 +139,55 @@ const ReportDetails = () => {
     }
   };
 
-  const isProcessing = report.lifecycle_status === 'PROCESSING' || report.lifecycle_status === 'PROCESSED';
-  const isProcessed = report.lifecycle_status === 'PROCESSED';
-  const isResolved = (report.incident?.status || '').toUpperCase() === 'RESOLVED';
+  const currentStatus = (report.incident?.status || report.status || '').toUpperCase();
+  const isResolved = currentStatus === 'RESOLVED' || currentStatus === 'CLOSED';
+  const isInProgress = currentStatus === 'IN_PROGRESS';
+  const isProcessed = report.lifecycle_status === 'PROCESSED' || Boolean(report.incident_id);
+  const isProcessing = report.lifecycle_status === 'PROCESSING';
 
   const timelineEvents = [
     {
       status: 'Report submitted to campus stream',
+      description: 'Logged by student into CampusCare system',
       date: formatDate(report.created_at),
       active: true,
       completed: true,
     },
     {
       status: isProcessed
-        ? `Processed & linked to Incident (${report.incident_id || 'INC'})`
+        ? `Incident assigned (${report.incident_id || 'INC'})`
         : isProcessing
-          ? 'Being processed by background consumer'
-          : 'Queued in Redis Stream',
-      date: report.incident?.created_at ? formatDate(report.incident.created_at) : (isProcessing ? 'In progress' : 'Awaiting worker'),
+          ? 'Processing by stream consumer'
+          : 'Queued for review',
+      description: isProcessed
+        ? 'Grouped with campus incident for technician dispatch'
+        : 'Waiting in message queue',
+      date: report.incident?.created_at ? formatDate(report.incident.created_at) : (isProcessing ? 'In progress' : 'Queued'),
       active: isProcessing || isProcessed,
       completed: isProcessed,
     },
     {
-      status: isResolved ? 'Issue resolved by maintenance' : 'Under maintenance review',
-      date: report.incident?.updated_at ? formatDate(report.incident.updated_at) : (isProcessed ? 'Active' : 'Pending review'),
-      active: isProcessed,
+      status: isResolved
+        ? 'Maintenance work completed'
+        : isInProgress
+          ? 'Technician on-site / In Progress'
+          : 'Scheduled for maintenance',
+      description: isResolved
+        ? 'Equipment repaired and tested by staff'
+        : isInProgress
+          ? 'Maintenance crew has been dispatched and is working'
+          : 'Awaiting repair crew assignment',
+      date: report.incident?.updated_at || report.updated_at ? formatDate(report.incident?.updated_at || report.updated_at) : (isInProgress ? 'In Progress' : 'Pending'),
+      active: isInProgress || isResolved,
+      completed: isResolved,
+    },
+    {
+      status: isResolved ? 'Issue Resolved & Closed' : 'Resolution & Verification',
+      description: isResolved
+        ? 'Verified by campus facility management'
+        : 'Final sign-off once repairs conclude',
+      date: isResolved ? formatDate(report.incident?.updated_at || report.updated_at) : 'Upcoming',
+      active: isResolved,
       completed: isResolved,
     },
   ];
@@ -184,6 +228,53 @@ const ReportDetails = () => {
                   {report.report_id}
                 </p>
               </div>
+            </div>
+
+            {/* Real-time Status Communication Card */}
+            <div className="mb-6">
+              {isResolved ? (
+                <div className="p-4 bg-green-50 border border-green-200 rounded-xl flex items-start gap-3.5">
+                  <CheckCircle2 className="w-5 h-5 text-green-600 shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="font-bold text-green-900 text-sm">Issue Resolved</h4>
+                    <p className="text-xs text-green-800 mt-0.5">
+                      The campus maintenance team has resolved this issue.
+                      {report.incident?.updated_at && ` (Updated: ${formatDate(report.incident.updated_at)})`}
+                    </p>
+                  </div>
+                </div>
+              ) : isInProgress ? (
+                <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl flex items-start gap-3.5">
+                  <Clock className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="font-bold text-blue-900 text-sm">Maintenance in Progress</h4>
+                    <p className="text-xs text-blue-800 mt-0.5">
+                      Facility technicians are currently on-site working on this issue. You will receive an update once it is resolved.
+                      {report.incident?.updated_at && ` (Status updated: ${formatDate(report.incident.updated_at)})`}
+                    </p>
+                  </div>
+                </div>
+              ) : isProcessed ? (
+                <div className="p-4 bg-purple-50 border border-purple-200 rounded-xl flex items-start gap-3.5">
+                  <ShieldCheck className="w-5 h-5 text-purple-600 shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="font-bold text-purple-900 text-sm">Assigned to Incident {report.incident_id}</h4>
+                    <p className="text-xs text-purple-800 mt-0.5">
+                      Your report has been verified and linked to campus incident <span className="font-mono font-semibold">{report.incident_id}</span> for priority repair scheduling.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex items-start gap-3.5">
+                  <Clock className="w-5 h-5 text-slate-500 shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="font-bold text-slate-800 text-sm">Complaint Queued</h4>
+                    <p className="text-xs text-slate-600 mt-0.5">
+                      Your report is in the processing pipeline and will be assigned to a maintenance incident shortly.
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-y-6 text-sm py-6 border-y border-slate-100">
@@ -281,7 +372,10 @@ const ReportDetails = () => {
                     )}>
                       {event.status}
                     </p>
-                    <p className="text-xs text-slate-400 mt-1">{event.date}</p>
+                    {event.description && (
+                      <p className="text-xs text-slate-500 mt-0.5">{event.description}</p>
+                    )}
+                    <p className="text-[11px] text-slate-400 mt-1 font-medium">{event.date}</p>
                   </div>
                 </div>
               ))}

@@ -18,18 +18,18 @@ const StatusBadge = ({ status, lifecycleStatus }) => {
   let label = 'Queued';
   let style = 'bg-blue-100 text-blue-700';
 
-  if (normalizedStatus === 'RESOLVED') {
+  if (normalizedStatus === 'RESOLVED' || normalizedStatus === 'CLOSED') {
     label = 'Resolved';
     style = 'bg-green-100 text-green-700';
-  } else if (lifecycleStatus === 'PROCESSED') {
-    label = 'Incident Linked';
+  } else if (normalizedStatus === 'IN_PROGRESS') {
+    label = 'In Progress';
+    style = 'bg-blue-100 text-blue-700';
+  } else if (lifecycleStatus === 'PROCESSED' || normalizedStatus === 'OPEN') {
+    label = 'Incident Assigned';
     style = 'bg-purple-100 text-purple-700';
   } else if (lifecycleStatus === 'PROCESSING') {
     label = 'Processing';
     style = 'bg-orange-100 text-orange-700';
-  } else if (normalizedStatus === 'IN_PROGRESS') {
-    label = 'In Progress';
-    style = 'bg-blue-100 text-blue-700';
   }
 
   return (
@@ -94,11 +94,15 @@ const Dashboard = () => {
   const getReportIcon = (report) => {
     const status = (report.incident?.status || report.status || '').toUpperCase();
 
-    if (status === 'RESOLVED') {
+    if (status === 'RESOLVED' || status === 'CLOSED') {
       return <CheckCircle2 className="w-5 h-5 text-green-500" />;
     }
 
-    if (report.lifecycle_status === 'PROCESSED') {
+    if (status === 'IN_PROGRESS') {
+      return <Clock className="w-5 h-5 text-blue-500" />;
+    }
+
+    if (report.lifecycle_status === 'PROCESSED' || status === 'OPEN') {
       return <CheckCircle2 className="w-5 h-5 text-purple-500" />;
     }
 

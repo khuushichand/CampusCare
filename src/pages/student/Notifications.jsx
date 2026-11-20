@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  ArrowLeft,
   Bell,
   MessageSquare,
   Wrench,
@@ -25,46 +26,49 @@ const readStoredIds = () => {
 };
 
 const getStatusDetails = (report) => {
-  const status = String(report.status || report.lifecycle_status || 'Report Queued')
+  const norm = String(report.incident?.status || report.status || report.lifecycle_status || 'Report Queued')
     .trim()
     .toLowerCase();
 
-  if (status.includes('resolv') || status.includes('clos')) {
+  const reportId = report.report_id || report.id || '';
+  const title = report.title || report.category || 'Maintenance complaint';
+
+  if (norm.includes('resolv') || norm.includes('clos')) {
     return {
-      title: 'Issue Resolved',
-      message: `Your report ${report.id || report.report_id || ''} has been marked as resolved.`,
+      title: 'Issue Resolved 🎉',
+      message: `Your complaint ${reportId} ("${title}") has been successfully resolved by the campus maintenance team.`,
       icon: CheckCircle2,
       color: 'text-green-600',
       bg: 'bg-green-50',
     };
   }
 
-  if (status.includes('progress') || status.includes('investigat') || status.includes('acknowledg')) {
+  if (norm.includes('progress')) {
     return {
-      title: 'Report Update',
-      message: `Your report ${report.id || report.report_id || ''} is being reviewed by the campus team.`,
+      title: 'Maintenance in Progress 🔧',
+      message: `Campus maintenance technicians are currently on-site working on ${reportId} ("${title}").`,
       icon: Wrench,
-      color: 'text-orange-600',
-      bg: 'bg-orange-50',
+      color: 'text-blue-600',
+      bg: 'bg-blue-50',
     };
   }
 
-  if (status.includes('reject')) {
+  if (report.incident_id || norm.includes('processed')) {
     return {
-      title: 'Report Update',
-      message: `There is an update on your report ${report.id || report.report_id || ''}.`,
-      icon: AlertCircle,
-      color: 'text-red-600',
-      bg: 'bg-red-50',
+      title: 'Assigned to Incident 📋',
+      message: `Your report ${reportId} ("${title}") was grouped into maintenance incident ${report.incident_id || ''}.`,
+      icon: Clock3,
+      color: 'text-purple-600',
+      bg: 'bg-purple-50',
     };
   }
 
   return {
-    title: 'Report Submitted',
-    message: `Your report ${report.id || report.report_id || ''} has been received and is awaiting review.`,
+    title: 'Report Received ⏳',
+    message: `Your report ${reportId} ("${title}") has been received and queued for facility review.`,
     icon: Clock3,
-    color: 'text-blue-600',
-    bg: 'bg-blue-50',
+    color: 'text-slate-600',
+    bg: 'bg-slate-50',
   };
 };
 
@@ -178,6 +182,13 @@ const Notifications = () => {
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
+      <button
+        onClick={() => navigate('/student/dashboard')}
+        className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-800 transition-colors"
+      >
+        <ArrowLeft className="w-4 h-4" /> Back to Dashboard
+      </button>
+
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
